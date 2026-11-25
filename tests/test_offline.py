@@ -1,7 +1,6 @@
-"""Chạy toàn bộ pipeline với dữ liệu giả, không cần mạng: kiểm tra lọc, trích CA, gộp giờ, xuất HTML.
+"""Kiểm tra không cần mạng: lọc tin, trích CA, DexScreener, đọc RSS, gộp sự kiện.
 Chạy: python3 tests/test_offline.py
 """
-import json
 import sys
 from pathlib import Path
 
@@ -9,8 +8,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "collector"))
 
 import dexscreener  # noqa: E402
-import pipeline  # noqa: E402
-import summarize as sm  # noqa: E402
 from filters import extract_contracts, filter_messages, topics_of  # noqa: E402
 
 EVM = "0x" + "a1" * 20
@@ -62,34 +59,47 @@ def test_dex_parse():
     print("dexscreener parse OK")
 
 
-def test_pipeline(out):
-    raw = json.loads((ROOT / "tests" / "sample_messages.json").read_text(encoding="utf-8"))
-    fake_dex = json.loads((ROOT / "tests" / "sample_dex.json").read_text(encoding="utf-8"))
-    dexscreener.lookup = lambda addrs: {a: fake_dex[a] for a in addrs if a in fake_dex}
+def test_rss():
+    import web_fetch
+    rss = (b'<?xml version="1.0"?><rss><channel><title>Bao A</title>'
+           b'<item><title>Fed &amp; l\xc3\xa3i su\xe1\xba\xa5t</title><description>&lt;p&gt;N\xe1\xbb\x99i dung&lt;/p&gt;</description>'
+           b'<link>https://a.vn/1</link><pubDate>Tue, 24 Nov 2026 08:00:00 +0700</pubDate></item>'
+           b'<item><title>Link xau</title><link>javascript:alert(1)</link></item></channel></rss>')
+    name, items = web_fetch.parse_feed(rss)
+    assert name == "Bao A" and items[0]["title"] == "Fed & lãi suất" and items[0]["summary"] == "Nội dung"
+    assert items[0]["date"].isoformat() == "2026-11-24T08:00:00+07:00"
+    assert items[1]["link"] == "", "link javascript: phải bị bỏ"
+    atom = (b'<feed xmlns="http://www.w3.org/2005/Atom"><title>B</title><entry><title>CPI</title>'
+            b'<link href="https://b.com/x"/><updated>2026-11-24T01:00:00Z</updated></entry></feed>')
+    _, items = web_fetch.parse_feed(atom)
+    assert items[0]["link"] == "https://b.com/x" and items[0]["date"].tzinfo is not None
+    assert web_fetch._find_feed("https://a.vn/", b'<link rel="alternate" type="application/rss+xml" href="/rss.xml">') == "https://a.vn/rss.xml"
+    print("rss OK")
+
+
+def test_merge_keeps_dropped():
+    import summarize as sm
+    events = [{"topic": "crypto", "title": f"E{i}", "points": ["x" * 400], "importance": 1 + i % 5,
+               "source_ids": [str(i)]} for i in range(200)]
+    sm.call = lambda keys, system, text: {"overview": "o", "events": [{"topic": "crypto", "title": "Gop", "points": [],
+                                                                         "importance": 5, "source_ids": []}]}
+    sm._DEAD.add(("gemini", "*"))  # chỉ còn Groq: giới hạn ngắn, buộc phải bỏ bớt
+    out = sm.merge_events({"groq": "k"}, events, "ngày")
+    assert len(out["events"]) > 150, "sự kiện không gửi được cho AI phải được giữ lại"
+    assert sm._time_first("Fed giữ lãi suất (21:01)") == "21:01 · Fed giữ lãi suất"
+    print("merge OK", len(out["events"]))
+
+
+def test_dex_down():
     calls = []
-
-    def fake_call(key, system, text):
-        calls.append(text)
-        ids = [line[1:line.index("]")] for line in text.splitlines() if line.startswith("[")]
-        if "Events:" in text:
-            return json.loads((ROOT / "tests" / "sample_digest.json").read_text(encoding="utf-8"))
-        return {"overview": f"{len(ids)} tin liên quan.", "events": [
-            {"topic": "crypto", "title": "Sự kiện thử", "points": ["ý 1"], "importance": 3, "source_ids": ids[:3]}]}
-
-    sm.call = fake_call
-    import filters
-    filters._WATCH_SENDERS = {"admin_vimo"}
-    raw_groups = {i: {"title": t} for i, t in enumerate(sorted({m["group"] for m in raw["messages"]}))}
-    data = pipeline.build(raw["messages"], raw_groups, "fake-key")
-    data["sample"] = True
-    assert data["tokens"] and data["hours"] and data["digest"]["events"] and data["watch"]
-    assert all(m["uid"] in data["messages"] for m in data["watch"])
-    pipeline.render_html(data, out)
-    print(f"pipeline OK: {len(calls)} lần gọi AI, {len(data['tokens'])} token, xuất {out}")
-    return data
+    dexscreener._get = lambda url, retries=3: calls.append(url) or None
+    assert dexscreener.lookup([EVM]) is None, "lỗi mạng phải trả None, không phải {}"
+    print("dex-down OK")
 
 
 if __name__ == "__main__":
     test_filters()
     test_dex_parse()
-    test_pipeline(sys.argv[1] if len(sys.argv) > 1 else str(ROOT / "tests" / "out_sample.html"))
+    test_rss()
+    test_merge_keeps_dropped()
+    test_dex_down()

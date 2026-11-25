@@ -1,19 +1,6 @@
 """Cấu hình chung. Sửa file này để đổi nhóm, chủ đề, từ khoá, tiêu chí chấm điểm."""
 
-import json as _json
-import os as _os
-
-# Danh sách nguồn RIÊNG TƯ không để trong code (repo công khai).
-# - Chạy tự động: nguồn lưu trong database, sửa trên trang "Cài đặt nguồn".
-# - Chạy Colab: đọc từ file sources_local.json (không đưa lên GitHub).
-_LOCAL = {}
-for _p in ("sources_local.json", _os.path.join(_os.path.dirname(__file__), "..", "sources_local.json")):
-    if _os.path.exists(_p):
-        _LOCAL = _json.load(open(_p, encoding="utf-8"))
-        break
-
-# ID nhóm lấy từ link web.telegram.org/a/#-100xxxxxxxxxx
-GROUP_IDS = [int(x) if str(x).lstrip("-").isdigit() else x for x in _LOCAL.get("telegram", [])]
+# Nhóm Telegram, trang báo, người theo dõi: lưu trong database, sửa trên web (mục "Cài đặt nguồn").
 
 # Chủ đề cố định.
 #   keywords: viết KHÔNG dấu, chữ thường; so với tin nhắn đã bỏ dấu.
@@ -94,10 +81,7 @@ WATCH = {
 
 # Người cần theo dõi: mọi tin của họ đều hiện ở mục "Theo dõi", kể cả khi không thuộc chủ đề nào.
 # Ghi username (không có @), hoặc ID số, hoặc tên hiển thị đúng như trong nhóm.
-WATCH_SENDERS = list(_LOCAL.get("watch_senders", []))
-
-# Trang web / báo cần tổng hợp: link RSS, hoặc link trang chủ (code tự tìm RSS).
-WEBSITES = list(_LOCAL.get("websites", []))  # [{"url": "...rss", "title": "..."}]
+WATCH_SENDERS = []  # thêm trên web; danh sách ở đây được gộp thêm
 
 # Mục hiển thị trên web (menu bên trái). AI xếp mỗi sự kiện vào đúng 1 mục.
 SECTIONS = {

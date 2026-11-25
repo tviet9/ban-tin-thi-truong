@@ -21,51 +21,31 @@ def writefile(rel):
 
 cells = [
     md("""
-# Bản tin Thị trường: chạy thử với dữ liệu thật
+# Bản tin Thị trường: tạo session string Telegram
 
-Notebook này đọc tin 3 nhóm Telegram trong 24 giờ qua, lọc theo chủ đề, tra token trên DexScreener,
-tóm tắt bằng Gemini rồi xuất ra trang web `ban_tin.html`.
+Notebook này chỉ dùng để **đăng nhập tài khoản Telegram phụ và lấy session string** cho bản chạy tự động
+(secret `TG_SESSION` trên GitHub). Việc lấy tin và tóm tắt đã chạy tự động mỗi giờ, không cần notebook.
 
-**Cách chạy:** bấm *Runtime → Run all* (Thời gian chạy → Chạy tất cả), rồi nhập thông tin khi được hỏi ở ô số 2 và số 3.
-
-**Lưu ý:** notebook sẽ **dừng chờ** ở các ô hỏi thông tin. Nếu thấy chạy lâu, kéo xuống tìm ô có khung nhập chữ đang nhấp nháy,
-nhập rồi bấm Enter. Thời gian chạy bình thường: đọc tin 1–3 phút, tóm tắt 3–8 phút.
-
-**Bảo mật:**
-- Mọi thứ chạy trong máy ảo Colab của riêng bạn. Không ai khác (kể cả Claude) thấy key, mã OTP hay tin nhắn.
-- Key và mã OTP nhập qua ô ẩn, không lưu vào notebook.
-- Code chỉ **đọc**: không gửi tin, không đánh dấu đã đọc, không hiện "đang online". Người trong nhóm không biết.
+**Cách chạy:** *Runtime → Run all*, nhập thông tin khi được hỏi, quét QR bằng điện thoại.
+Mọi thứ chạy trong Colab của bạn; key, mã đăng nhập và session string không gửi đi đâu.
 """),
-    md("## 1. Cài thư viện và nạp code"),
-    code("!pip -q install telethon==1.36.0 qrcode[pil]\n!mkdir -p /content/app/collector /content/app/web"),
+    code("!pip -q install telethon==1.36.0 qrcode[pil]\n!mkdir -p /content/app/collector"),
+    writefile("collector/telegram_fetch.py"),
 ]
-_local = ROOT / "sources_local.json"
-if _local.exists():  # danh sách nhóm riêng tư: chỉ nằm trong notebook của bạn, không đưa lên GitHub
-    cells.append(code("%%writefile /content/app/sources_local.json\n" + _local.read_text(encoding="utf-8")))
-for rel in ["collector/config.py", "collector/filters.py", "collector/dexscreener.py", "collector/summarize.py",
-            "collector/telegram_fetch.py", "collector/web_fetch.py", "collector/pipeline.py", "web/template.html"]:
-    cells.append(writefile(rel))
 cells += [
     md("""
-## 2. Nhập key
-- `api_id`, `api_hash`: lấy ở https://my.telegram.org → *API development tools*
-- Gemini API key: lấy ở https://aistudio.google.com → *Get API key*
-- Groq API key (dự phòng, miễn phí): https://console.groq.com → đăng nhập bằng Google → *API Keys* → *Create API Key*
+## 1. Nhập key
+`api_id`, `api_hash`: lấy ở https://my.telegram.org → *API development tools*
 """),
     code("""
 import sys, getpass
 sys.path.insert(0, "/content/app/collector")
 API_ID = input("api_id: ").strip()
 API_HASH = getpass.getpass("api_hash (ẩn): ").strip()
-GEMINI_KEY = getpass.getpass("Gemini API key (ẩn, bỏ trống nếu không có): ").strip()
-GROQ_KEY = getpass.getpass("Groq API key - dự phòng khi Gemini hết hạn mức (ẩn, bỏ trống nếu không có): ").strip()
-AI_KEYS = {"gemini": GEMINI_KEY, "groq": GROQ_KEY}
-if not GEMINI_KEY and not GROQ_KEY:
-    raise SystemExit("Cần ít nhất 1 key: Gemini hoặc Groq.")
 print("Đã nhận key.")
 """),
     md("""
-## 3. Đăng nhập Telegram
+## 2. Đăng nhập Telegram
 **Cách 1 (khuyên dùng): quét mã QR**, không cần mã OTP.
 Trên điện thoại, mở app Telegram đang đăng nhập **tài khoản phụ** → **Cài đặt** → **Thiết bị** →
 **Liên kết thiết bị máy tính** (Link Desktop Device) → quét mã QR hiện ở dưới. Sau đó nhập mật khẩu 2 bước nếu có.
@@ -162,43 +142,8 @@ me = await client.get_me()
 SESSION = client.session.save()
 print("Đăng nhập thành công:", me.first_name)
 """),
-    md("## 4. Đọc tin nhắn"),
-    code("""
-from datetime import datetime, timedelta, timezone
-from config import GROUP_IDS
-from telegram_fetch import fetch_async
-
-HOURS_BACK = 24   # đổi thành 72 nếu muốn xem 3 ngày (tốn hạn mức Gemini hơn)
-since = datetime.now(timezone.utc) - timedelta(hours=HOURS_BACK)
-messages, groups, max_ids = await fetch_async(client, GROUP_IDS, since)
-print(f"Tổng: {len(messages)} tin từ {len(groups)} nhóm")
-
-import web_fetch
-from config import WEBSITES
-web_msgs, websites = web_fetch.fetch(WEBSITES, since) if WEBSITES else ([], [])
-messages += web_msgs
-if WEBSITES:
-    print(f"Trang web: {len(web_msgs)} bài từ {len(websites)} trang")
-"""),
-    md("## 5. Lọc, tra token, tóm tắt (mất vài phút)"),
-    code("""
-import importlib, pipeline
-importlib.reload(pipeline)
-BUCKET_HOURS = 6   # gom 6 giờ / 1 lần gọi AI để tiết kiệm hạn mức miễn phí. Đặt 1 nếu muốn xem đúng từng giờ
-data = pipeline.build(messages, groups, AI_KEYS, bucket_hours=BUCKET_HOURS,
-                      history_path="/content/token_history.json", websites=websites)  # lưu giá lần đầu để tính % ở lần chạy sau
-pipeline.render_html(data, "/content/ban_tin.html")
-print("Xong. Tải file ban_tin.html ở ô dưới.")
-"""),
-    md("""## 6. Xem và tải kết quả
-Ô dưới hiện trang kết quả **ngay trong Colab**. Muốn lưu file: bấm biểu tượng **thư mục** ở thanh bên trái →
-`ban_tin.html` → dấu **⋮** → **Tải xuống**. (Nút tải tự động của Colab đôi khi treo ở "downloading".)"""),
-    code("""
-from IPython.display import HTML, display
-display(HTML(open("/content/ban_tin.html", encoding="utf-8").read()))
-"""),
     md("""
-## 7. (Tuỳ chọn) Lưu session string cho bước chạy tự động
+## 3. Lấy session string (dán vào secret TG_SESSION trên GitHub)
 Session string **tương đương quyền đăng nhập tài khoản**. Chỉ lưu vào trình quản lý mật khẩu hoặc GitHub Secrets.
 Không gửi cho ai, không dán vào chat.
 """),

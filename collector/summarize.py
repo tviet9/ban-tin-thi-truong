@@ -399,18 +399,20 @@ def _clean(result):
 
 
 def _merge(keys, events, overviews, label):
-    events = [e for e in events if isinstance(e, dict)]
+    events = sorted((e for e in events if isinstance(e, dict)), key=lambda e: -(e.get("importance") or 0))
     slim = [{k: e.get(k) for k in ("topic", "tags", "title", "points", "importance", "source_ids", "contracts")}
             for e in events]
-    slim.sort(key=lambda e: -(e.get("importance") or 0))
     gemini_alive = isinstance(keys, str) or (keys.get("gemini") and ("gemini", "*") not in _DEAD)
     limit = MAX_CHARS_PER_CALL if gemini_alive else GROQ_MAX_CHARS - 2000
     text = json.dumps(slim, ensure_ascii=False)
     while len(text) > limit and len(slim) > 1:  # quá dài: bỏ dần event ít quan trọng nhất
         slim.pop()
         text = json.dumps(slim, ensure_ascii=False)
+    dropped = events[len(slim):]  # quá dài nên không gửi AI gộp: giữ nguyên, nối vào cuối
     try:
-        return call(keys, MERGE_SYSTEM, f"Khung thời gian: {label}\nEvents:\n{text}")
+        out = call(keys, MERGE_SYSTEM, f"Khung thời gian: {label}\nEvents:\n{text}")
+        out["events"] = list(out.get("events") or []) + dropped
+        return out
     except TooLarge:  # không gộp được bằng AI: giữ nguyên các event
         print("    không gộp được bằng AI (quá dài), giữ nguyên danh sách", flush=True)
         return {"overview": " ".join(o for o in overviews if o)[:800], "events": events}

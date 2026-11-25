@@ -4,9 +4,8 @@ Những gì code này KHÔNG làm: gửi tin, thả cảm xúc, đánh dấu đ�
 Người trong nhóm không nhìn thấy gì. Chỉ chủ tài khoản thấy thêm 1 phiên đăng nhập trong
 Cài đặt > Thiết bị.
 """
-import asyncio
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from telethon import TelegramClient, functions
 from telethon.sessions import StringSession
@@ -94,27 +93,3 @@ async def fetch_async(client, group_ids, since: datetime, min_ids=None, limit_pe
         print(f"[telegram] {_name(title)}: {count} tin")
     await client(functions.account.UpdateStatusRequest(offline=True))
     return messages, groups, max_ids
-
-
-def fetch(session_string, api_id, api_hash, group_ids, hours_back=24, min_ids=None, limit_per_group=None):
-    since = datetime.now(timezone.utc) - timedelta(hours=hours_back)
-
-    async def run():
-        client = make_client(session_string, api_id, api_hash)
-        await client.connect()
-        if not await client.is_user_authorized():
-            raise RuntimeError("Session string hết hạn hoặc sai. Chạy lại bước đăng nhập.")
-        try:
-            return await fetch_async(client, group_ids, since, min_ids, limit_per_group)
-        finally:
-            await client.disconnect()
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():  # trong Colab/Jupyter
-        import nest_asyncio
-        nest_asyncio.apply()
-        return loop.run_until_complete(run())
-    return asyncio.run(run())

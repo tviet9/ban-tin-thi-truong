@@ -53,18 +53,13 @@ def tg_key(v):
     return int(v) if v.lstrip("-").isdigit() else v
 
 
-def tg_creds(db):
-    """Ưu tiên secret trên GitHub nếu hợp lệ; nếu không, dùng bản lưu trong database."""
+def tg_creds():
     api_id = os.environ.get("TG_API_ID", "").strip()  # secret hay dính dấu xuống dòng
     api_hash = os.environ.get("TG_API_HASH", "").strip()
     session = os.environ.get("TG_SESSION", "").strip()
-    if api_id.isdigit() and len(api_hash) == 32 and len(session) > 100:
-        return api_id, api_hash, session
-    saved = db.get_state("tg_creds")
-    if not saved:
-        raise SystemExit("Secret TG_API_ID / TG_API_HASH / TG_SESSION chưa đúng và database không có bản dự phòng.")
-    log("[telegram] dùng thông tin đăng nhập lưu trong database")
-    return saved["api_id"], saved["api_hash"], saved["session"]
+    if not (api_id.isdigit() and len(api_hash) == 32 and len(session) > 100):
+        raise SystemExit("Secret TG_API_ID / TG_API_HASH / TG_SESSION chưa đúng (kiểm tra lại giá trị trên GitHub).")
+    return api_id, api_hash, session
 
 
 async def fetch_telegram(groups, min_ids, creds):
@@ -117,7 +112,7 @@ def main():
     min_ids = db.get_state("min_ids", {})
     msgs, info = ([], {})
     if src["telegram"]:
-        msgs, info = asyncio.run(fetch_telegram(src["telegram"], min_ids, tg_creds(db)))
+        msgs, info = asyncio.run(fetch_telegram(src["telegram"], min_ids, tg_creds()))
     # cập nhật tên nhóm thật nếu người dùng chưa đặt tên
     for r in src["telegram"]:
         i = info.get(str(r["value"]))
@@ -129,14 +124,9 @@ def main():
         last_web = db.get_state("last_web_run")
         since = datetime.fromisoformat(last_web) - timedelta(hours=2) if last_web else start_of_today()
         wmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": r.get("title")} for r in src["website"]], since)
-        uids = [m["uid"] for m in wmsgs]
-        seen = set()
-        for i in range(0, len(uids), 90):
-            part = uids[i:i + 90]
-            seen |= {r["uid"] for r in db.query(
-                f"SELECT uid FROM messages WHERE uid IN ({','.join('?' * len(part))})", part)}
-        msgs += [m for m in wmsgs if m["uid"] not in seen]
-        db.set_state("last_web_run", now.isoformat())
+        web_seen = db.get_state("web_seen", [])
+        msgs += [m for m in wmsgs if m["uid"] not in set(web_seen)]
+        web_seen = (web_seen + [m["uid"] for m in wmsgs if m["uid"] not in set(web_seen)])[-5000:]
     log(f"[đọc] {len(msgs)} tin mới")
 
     # Bỏ tin đã lưu ở lượt trước (khi lượt trước lỗi giữa chừng) để không đếm trùng
@@ -157,18 +147,24 @@ def main():
     mentions = defaultdict(lambda: {"uids": set(), "groups": set(), "first": None, "links": []})
     for m in kept:
         for ca in m["contracts"]:
-            x = mentions[ca]
+            x = mentions[(vn_day(m["date"]), ca)]  # token nhắc lúc 23:5x vẫn thuộc ngày đó
             x["uids"].add(m["uid"])
             x["groups"].add(m["group"])
             x["first"] = min(filter(None, [x["first"], m["date"]]))
             if len(x["links"]) < 5:
                 x["links"].append(m["link"])
-    old_today = {r["address"]: json.loads(r["data"]) for r in
-                 db.query("SELECT address, data FROM token_days WHERE day = ?", [today])}
-    dex = dexscreener.lookup(list(dict.fromkeys(list(mentions) + list(old_today)))) if (mentions or old_today) else {}
-    valid = set(dex)
-    for m in kept:
-        m["contracts"] = [c for c in m["contracts"] if c in valid]
+    tok_days = sorted({d for d, _ in mentions} | {today})
+    old = {(r["day"], r["address"]): json.loads(r["data"]) for r in db.query(
+        f"SELECT day, address, data FROM token_days WHERE day IN ({','.join('?' * len(tok_days))})", tok_days)}
+    pairs = list(dict.fromkeys(list(mentions) + [k for k in old if k[0] == today]))
+    addrs_all = list(dict.fromkeys(ca for _, ca in pairs))
+    dex = dexscreener.lookup(addrs_all) if addrs_all else {}
+    if dex is None:  # DexScreener lỗi mạng: giữ nguyên CA trong tin, lượt sau cập nhật giá
+        log("[token] DexScreener không trả lời, bỏ qua cập nhật token lượt này")
+        dex = {}
+    else:
+        for m in kept:
+            m["contracts"] = [c for c in m["contracts"] if c in dex]
     known = {}
     addrs = list(dex)
     for i in range(0, len(addrs), 90):
@@ -176,10 +172,13 @@ def main():
         for r in db.query(f"SELECT * FROM tokens WHERE address IN ({','.join('?' * len(part))})", part):
             known[r["address"]] = r
     new_tokens, token_rows = [], []
-    for ca, info_ in dex.items():
+    for day, ca in pairs:
+        info_ = dex.get(ca)
+        if not info_:
+            continue
         key = ca.lower() if ca.startswith("0x") else ca
-        prev = old_today.get(ca, {})
-        mm = mentions.get(ca)
+        prev = old.get((day, ca), {})
+        mm = mentions.get((day, ca))
         uids = sorted(set(prev.get("uids", [])) | (mm["uids"] if mm else set()))
         t = {**info_,
              "uids": uids,
@@ -194,9 +193,9 @@ def main():
             t["change_since_first"] = (t["price_usd"] / k["first_price"] - 1) * 100
         else:
             t["change_since_first"] = None
-            if t.get("price_usd"):
+            if t.get("price_usd") and key not in {r[0] for r in new_tokens}:
                 new_tokens.append([key, t["price_usd"], t["price_at"], t["first_seen"], t.get("symbol")])
-        token_rows.append([today, ca, json.dumps(t, ensure_ascii=False)])
+        token_rows.append([day, ca, json.dumps(t, ensure_ascii=False)])
     db.upsert("tokens", ["address", "first_price", "first_at", "first_mention", "symbol"], new_tokens, conflict=["address"])
     db.upsert("token_days", ["day", "address", "data"], token_rows, conflict=["day", "address"])
     log(f"[token] {len(dex)} token, {len(new_tokens)} lần đầu")
@@ -262,6 +261,9 @@ def main():
         "link": m["link"], "group": m["group"], "date": m["date"], "sender": m.get("sender"), "text": m["text"][:400]},
         ensure_ascii=False)] for m in kept], conflict=["uid"])
     db.set_state("min_ids", min_ids)
+    if src["website"]:
+        db.set_state("web_seen", web_seen)
+        db.set_state("last_web_run", now.isoformat())
     db.set_state("last_run", now.isoformat())
 
     # 8. Xoá dữ liệu cũ hơn 1 năm

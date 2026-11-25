@@ -58,7 +58,7 @@ def main():
         v["price_at"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
     run_hourly.dexscreener.lookup = lambda addrs: {a: dict(sample_dex[a]) for a in addrs if a in sample_dex}
 
-    run_hourly.tg_creds = lambda db: ("1", "a" * 32, "s" * 200)
+    run_hourly.tg_creds = lambda: ("1", "a" * 32, "s" * 200)
 
     async def fake_tg(groups, min_ids, creds):
         msgs = fake_messages()

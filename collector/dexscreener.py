@@ -17,7 +17,7 @@ def _get(url, retries=3):
         except Exception as e:  # noqa: BLE001
             if i == retries - 1:
                 print(f"[dexscreener] lỗi: {e}")
-                return {}
+                return None
             time.sleep(2 * (i + 1))
 
 
@@ -65,12 +65,15 @@ def summarize_pairs(address, pairs):
 
 
 def lookup(addresses):
-    """Trả về dict address -> thông tin. CA không có cặp giao dịch sẽ không có trong kết quả."""
+    """Trả về dict address -> thông tin (CA không có cặp giao dịch thì không có trong kết quả).
+    Trả về None nếu không gọi được DexScreener."""
     out = {}
     addresses = list(dict.fromkeys(addresses))
     for i in range(0, len(addresses), BATCH):
         chunk = addresses[i:i + BATCH]
         data = _get(API + ",".join(chunk))
+        if data is None:
+            return None
         pairs = data.get("pairs") or []
         for addr in chunk:
             info = summarize_pairs(addr, pairs)
