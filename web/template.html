@@ -76,7 +76,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .tag{font-size:.7rem;font-weight:600;border:1px solid currentColor;border-radius:999px;padding:0 7px;color:var(--i4)}
 .event h3{margin:0;font-size:1.04rem;line-height:1.3;font-weight:650;letter-spacing:-.008em;text-wrap:balance}
 .event ul{margin:2px 0 0;padding-left:18px}
-.event li{margin:2px 0}
+.event li{margin:2px 0;overflow-wrap:anywhere}
+.event > *{min-width:0}
+.event h3,.why{overflow-wrap:anywhere}
 .why{grid-column:2;font-size:.8rem;color:var(--muted);margin-top:4px}
 details.src{grid-column:2;font-size:.82rem;margin-top:4px}
 details.src summary{cursor:pointer;color:var(--accent);width:max-content}
@@ -109,6 +111,11 @@ a{color:var(--accent)}
 .card .u{font-weight:600;overflow-wrap:anywhere}
 .ctx{font-size:.84rem;color:var(--muted);overflow-wrap:anywhere}
 .wtext{white-space:pre-wrap;overflow-wrap:anywhere}
+.clamp6{display:-webkit-box;-webkit-line-clamp:6;line-clamp:6;-webkit-box-orient:vertical;overflow:hidden}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.more{border:0;background:none;color:var(--accent);padding:0;font-size:.85rem;font-weight:600;align-self:flex-start}
+#tokMore{margin-top:4px;align-self:center}
+@media (max-width:600px){.stats{display:grid;grid-template-columns:repeat(3,auto);gap:10px 18px;justify-content:start}}
 .wtag{font-size:.7rem;font-weight:600;padding:0 8px;border-radius:999px;border:1px solid currentColor}
 .wtag-chain_moi{color:var(--accent)} .wtag-launchpad{color:var(--i4)} .wtag-nguoi{color:var(--i3)}
 .tm{font:600 .8rem var(--mono);color:var(--accent);margin-right:2px;white-space:nowrap}
@@ -119,6 +126,9 @@ a{color:var(--accent)}
 .srcrow{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:8px;min-width:0}
 .set h3 + .srcrow{border-top:0;padding-top:0}
 .srcrow .v{font:500 .78rem var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.srcrow > div{min-width:0}
+.srcrow b{overflow-wrap:anywhere}
+.srcrow .btn{flex-shrink:0}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:5px 12px;font-size:.85rem}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:600}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -139,7 +149,8 @@ button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
 @media (prefers-reduced-transparency:reduce){.bar,nav.side{background:var(--bg)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
 @media (prefers-contrast:more){:root{--line:#9aa3af;--muted:#3d4450}.bar::after{display:none}.bar{border-bottom:1px solid var(--line)}}
 @media (max-width:860px){
-  .shell{grid-template-columns:1fr}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  nav.side{min-width:0}
   nav.side{position:sticky;max-height:none;flex-direction:row;overflow-x:auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));gap:4px;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);z-index:6;scrollbar-width:none;box-shadow:0 1px 0 var(--line)}
   .navh{display:none}
   .nav,.nav.sub{width:auto;white-space:nowrap;padding:5px 10px;font-size:.88rem}
@@ -190,21 +201,28 @@ const NAV = [
   {id:"links", label:"Link"},
   {id:"settings", label:"Cài đặt nguồn"},
 ];
-const state = {nav:"all", mode:"digest", minImp:1, tag:"all", watch:"all"};
+const state = {nav:"all", mode:"digest", minImp:1, tag:"all", watch:"all", tokLimit:100};
 try { Object.assign(state, JSON.parse(localStorage.getItem("digest-state-v2") || "{}")); } catch(e) {}
 const navIds = NAV.filter(n => n.id).map(n => n.id);
 if (navIds.includes(location.hash.slice(1))) state.nav = location.hash.slice(1);
 if (!navIds.includes(state.nav)) state.nav = "all";
 const cur = () => NAV.find(n => n.id === state.nav);
 
-const fmtUsd = v => v == null ? "–" : v >= 1e9 ? "$" + (v/1e9).toFixed(2) + "B" : v >= 1e6 ? "$" + (v/1e6).toFixed(2) + "M" : v >= 1e3 ? "$" + (v/1e3).toFixed(1) + "K" : "$" + Number(v).toFixed(0);
+const fmtUsd = v => v == null ? "–" : v >= 1e12 ? "$" + (v/1e12).toFixed(2) + "T" : v >= 1e9 ? "$" + (v/1e9).toFixed(2) + "B" : v >= 1e6 ? "$" + (v/1e6).toFixed(2) + "M" : v >= 1e3 ? "$" + (v/1e3).toFixed(1) + "K" : "$" + Number(v).toFixed(0);
 const fmtPrice = v => { if (v == null) return "–"; if (v >= 1) return "$" + v.toLocaleString("en-US",{maximumFractionDigits:4});
-  const s = v.toPrecision(4); return "$" + (v < 1e-6 ? Number(s).toExponential(2) : s); };
+  if (v > 0 && v < 1e-4) {
+    const zeros = Math.ceil(-Math.log10(v)) - 1;             // số chữ số 0 sau dấu phẩy, ví dụ 0.0000873 có 4
+    const digits = Math.round(v * Math.pow(10, zeros + 4)).toString().replace(/0+$/, "");
+    const sub = String(zeros).replace(/\d/g, d => "₀₁₂₃₄₅₆₇₈₉"[d]);
+    return `$0.0${sub}${digits}`;
+  }
+  return "$" + Number(v.toPrecision(4)); };
 const fmtTime = iso => { if (!iso) return ""; try { return new Date(iso).toLocaleString("vi-VN",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit"}); } catch(e){ return iso; } };
 // Chỉ cho phép link http(s); link lạ (javascript:...) thành "#"
 const safeUrl = u => { u = String(u || ""); if (/^https?:\/\//i.test(u)) return esc(u); if (/^(www\.|t\.me\/)/i.test(u)) return esc("https://" + u); return "#"; };
 const short = a => a.length > 14 ? a.slice(0,6) + "…" + a.slice(-4) : a;
-const pct = v => (v > 0 ? "+" : "") + (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US") : v.toFixed(1)) + "%";
+const pct = v => (v > 0 ? "+" : "") + (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US")
+  : (Math.abs(v) >= 99 && Math.abs(v) < 100) ? v.toFixed(2) : v.toFixed(1)) + "%";
 function save(){ try { localStorage.setItem("digest-state-v2", JSON.stringify({minImp:state.minImp, tag:state.tag, mode:state.mode})); } catch(e) {} }
 
 const allEvents = () => DATA.digest.events;
@@ -212,7 +230,8 @@ const passBase = e => e.importance >= state.minImp && (state.tag === "all" || (e
 const inNav = (e, n) => !n.news || n.news.includes(e.topic);
 
 function header(){
-  $("#sub").textContent = (DATA.generated_at ? `Cập nhật ${fmtTime(DATA.generated_at)} · ` : "Chưa có lần cập nhật nào · ") + `${DATA.groups.length} nguồn` + (DATA.groups.length ? ": " + DATA.groups.join(", ") : "");
+  $("#sub").textContent = (DATA.generated_at ? `Cập nhật ${fmtTime(DATA.generated_at)} · ` : "Chưa có lần cập nhật nào · ") + `${DATA.groups.length} nguồn`;
+  $("#sub").title = DATA.groups.join("\n");
   const s = DATA.stats;
   $("#stats").innerHTML = [[s.total,"tin đọc"],[s.kept,"tin liên quan"],[allEvents().length,"sự kiện"],[DATA.tokens.length,"token"],[(DATA.watch||[]).length,"tin theo dõi"]]
     .map(([n,l]) => `<div class="stat"><b>${Number(n).toLocaleString("vi-VN")}</b><span>${l}</span></div>`).join("");
@@ -298,7 +317,7 @@ function renderNews(n){
 
 function renderTokens(){
   if (!DATA.tokens.length) return `<p class="empty">Chưa thấy contract nào có giao dịch trên DexScreener.</p>`;
-  const rows = DATA.tokens.map((t,i) => {
+  const rows = DATA.tokens.slice(0, state.tokLimit).map((t,i) => {
     const ch = t.change_since_first;
     const cls = ch > 0 ? "up" : ch < 0 ? "down" : "";
     const chg = ch == null ? `<span class="first">Lần đầu được nhắc</span>`
@@ -312,11 +331,11 @@ function renderTokens(){
       <td class="num">${fmtUsd(t.liquidity_usd)}</td>
       <td class="num">${fmtUsd(t.market_cap ?? t.fdv)}</td>
       <td class="num">${esc(t.age)}</td>
-      <td class="num">${t.mentions}<span class="small">${t.groups.map(esc).join(", ")}</span></td>
+      <td class="num">${t.mentions}<span class="small clamp2" title="${esc(t.groups.join(", "))}">${t.groups.map(esc).join(", ")}</span></td>
       <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
   }).join("");
   return `<p class="note">Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
-  <div class="tbl"><table><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  <div class="tbl"><table><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${DATA.tokens.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, DATA.tokens.length - state.tokLimit)} token (còn ${DATA.tokens.length - state.tokLimit})</button>` : ""}`;
 }
 
 function renderWatch(){
@@ -330,7 +349,7 @@ function renderWatch(){
       return `<span class="ca-pill" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd) : short(a)}</span>`; }).join("");
     const links = (m.links||[]).map(u => `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${esc(u)}</a>`).join("<br>");
     return `<article class="card"><div class="meta">${tags}<span><b>${esc(m.sender || m.username || "?")}</b> · ${esc(m.group)} · ${fmtTime(m.date)}</span><a href="${safeUrl(m.link)}" target="_blank" rel="noopener">${/t\.me\//.test(m.link||"") ? "mở trong Telegram" : "mở bài gốc"}</a></div>
-      <div class="wtext">${esc(m.text)}</div>${links ? `<div class="ctx">${links}</div>` : ""}${cas ? `<div class="chips">${cas}</div>` : ""}</article>`;
+      <div class="wtext${m.text.length > 400 ? " clamp6" : ""}" id="wt-${esc(m.uid)}">${esc(m.text)}</div>${m.text.length > 400 ? `<button class="more" data-more="wt-${esc(m.uid)}">Xem thêm</button>` : ""}${links ? `<div class="ctx">${links}</div>` : ""}${cas ? `<div class="chips">${cas}</div>` : ""}</article>`;
   }).join("");
 }
 
@@ -423,6 +442,8 @@ document.addEventListener("click", ev => {
   else if (b.dataset.imp) state.minImp = Number(b.dataset.imp);
   else if (b.dataset.tag) state.tag = b.dataset.tag;
   else if (b.dataset.watch) state.watch = b.dataset.watch;
+  else if (b.dataset.tokmore) state.tokLimit += 100;
+  else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
   else if (b.dataset.themeSet) { THEME = b.dataset.themeSet; try { localStorage.setItem("digest-theme", THEME); } catch(e) {} applyTheme(THEME); return; }
   else if (b.dataset.del) {
     api("DELETE", {kind: b.dataset.del, value: b.dataset.val}).then(j => { DATA.sources = j.sources; render(); })
