@@ -2,3 +2,4 @@ Skills sao chép từ https://github.com/dietrichgebert/ponytail (giấy phép M
 Chỉ lấy phần skills, không cài hooks của plugin.
 
 find-skills: sao chép từ https://github.com/vercel-labs/skills (skills/find-skills).
+web-design-guidelines: sao chép từ https://github.com/vercel-labs/agent-skills (skills/web-design-guidelines).
