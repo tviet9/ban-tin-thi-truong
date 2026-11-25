@@ -12,3 +12,6 @@ CREATE TABLE IF NOT EXISTS links (url TEXT NOT NULL, day TEXT NOT NULL, date TEX
 CREATE TABLE IF NOT EXISTS tokens (address TEXT PRIMARY KEY, first_price REAL, first_at TEXT, first_mention TEXT, symbol TEXT);
 CREATE TABLE IF NOT EXISTS token_days (day TEXT NOT NULL, address TEXT NOT NULL, data TEXT, PRIMARY KEY (day, address));
 CREATE TABLE IF NOT EXISTS stats (day TEXT PRIMARY KEY, data TEXT);
+CREATE TABLE IF NOT EXISTS x_posts (uid TEXT PRIMARY KEY, day TEXT, date TEXT, data TEXT);
+CREATE INDEX IF NOT EXISTS x_posts_day ON x_posts(day);
+CREATE TABLE IF NOT EXISTS x_trend (day TEXT PRIMARY KEY, data TEXT);

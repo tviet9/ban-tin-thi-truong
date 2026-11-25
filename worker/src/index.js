@@ -22,24 +22,27 @@ async function inChunks(db, sql, ids) {
 
 async function sources(db) {
   const r = await db.prepare("SELECT kind, value, title FROM sources ORDER BY created_at").all();
-  const s = { telegram: [], websites: [], watch_senders: [] };
+  const s = { telegram: [], websites: [], watch_senders: [], x: [] };
   for (const x of r.results) {
     if (x.kind === "telegram") s.telegram.push({ id: x.value, title: x.title });
     else if (x.kind === "website") s.websites.push({ url: x.value, title: x.title });
     else if (x.kind === "sender") s.watch_senders.push(x.value);
+    else if (x.kind === "x") s.x.push({ url: x.value, title: x.title });
   }
   return s;
 }
 
 async function buildData(env, day) {
   const db = env.DB;
-  const [dg, hrs, toks, wt, lk, st, days, last, src] = await Promise.all([
+  const [dg, hrs, toks, wt, lk, st, xp, xt, days, last, src] = await Promise.all([
     db.prepare("SELECT data FROM digests WHERE day = ?").bind(day).first(),
     db.prepare("SELECT data FROM hours WHERE day = ? ORDER BY hour DESC").bind(day).all(),
     db.prepare("SELECT data FROM token_days WHERE day = ?").bind(day).all(),
     db.prepare("SELECT data FROM watch WHERE day = ? ORDER BY date DESC LIMIT 500").bind(day).all(),
     db.prepare("SELECT data FROM links WHERE day = ? ORDER BY date DESC LIMIT 300").bind(day).all(),
     db.prepare("SELECT data FROM stats WHERE day = ?").bind(day).first(),
+    db.prepare("SELECT data FROM x_posts WHERE day = ? ORDER BY date DESC LIMIT 300").bind(day).all(),
+    db.prepare("SELECT data FROM x_trend WHERE day = ?").bind(day).first(),
     db.prepare("SELECT day FROM stats ORDER BY day DESC LIMIT 400").all(),
     db.prepare("SELECT value FROM state WHERE key = 'last_run'").first(),
     sources(db),
@@ -57,7 +60,7 @@ async function buildData(env, day) {
     generated_at: last ? parse(last.value, null) : null,
     sample: false, api: true, day, days: days.results.map(r => r.day),
     topics: TOPICS, sections: SECTIONS, tags: TAGS,
-    groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url)),
+    groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url), src.x.map(x => "X · " + (x.title || "X"))),
     stats: { total: stats.total || 0, kept: stats.kept || 0 },
     digest: digest || { overview: "Chưa có dữ liệu cho ngày này. Hệ thống cập nhật mỗi giờ.", events: [] },
     hours, tokens,
@@ -65,6 +68,8 @@ async function buildData(env, day) {
     watch_labels: WATCH_LABELS,
     watch: wt.results.map(r => parse(r.data, null)).filter(Boolean),
     messages: msgs, sources: src,
+    x_posts: xp.results.map(r => parse(r.data, null)).filter(Boolean),
+    x_trend: xt ? parse(xt.data, []) : [],
   };
 }
 
@@ -115,9 +120,11 @@ async function handleSources(req, env) {
   if (bad) return bad;
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind || ""), value = String(body.value || "").trim(), title = String(body.title || "").trim().slice(0, 100);
-  if (!["telegram", "website", "sender"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
+  if (!["telegram", "website", "sender", "x"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
   if (kind === "telegram" && !/^(-100\d{6,}|@[A-Za-z0-9_]{4,})$/.test(value)) return json({ error: "ID nhóm phải dạng -100... hoặc @tennhom" }, 400);
   if (kind === "website" && !/^https?:\/\/[^\s]+$/.test(value)) return json({ error: "Link trang web phải bắt đầu bằng http(s)://" }, 400);
+  if (kind === "x" && !/^https?:\/\/[^\s]+$/.test(value)) return json({ error: "Dán link RSS của tài khoản X (tạo ở rss.app), bắt đầu bằng https://" }, 400);
+  if (kind === "x" && /^https?:\/\/(www\.)?(x|twitter)\.com\//i.test(value)) return json({ error: "Link x.com chưa đọc được trực tiếp. Tạo link RSS cho tài khoản này ở rss.app rồi dán link RSS." }, 400);
   if (kind === "sender" && !/^[A-Za-z0-9_]{3,}$/.test(value)) return json({ error: "Username chỉ gồm chữ, số, dấu _" }, 400);
   if (req.method === "POST") {
     await db.prepare("INSERT INTO sources (kind, value, title, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, value) DO UPDATE SET title = excluded.title")

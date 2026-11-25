@@ -36,6 +36,7 @@ assert(r.status === 200 && html.includes("const DATA = {"), "trang chính có d�
 const data = JSON.parse(html.match(/const DATA = (\{.*?\});\n/s)[1]);
 assert(data.api && data.digest.events.length > 0 && data.tokens.length === 2 && data.watch.length > 0, "dữ liệu đủ");
 assert(Object.keys(data.messages).length > 0, "có tin gốc");
+assert(data.x_posts.length === 4 && data.x_trend[0].term === "$DOGE" && data.sources.x.length === 1, "mục X");
 fs.writeFileSync(outHtml, html);
 
 r = await call("/api/sources", { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ kind: "website", value: "https://vnexpress.net/rss/kinh-doanh.rss", title: "VnExpress" }) });
