@@ -9,7 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const [dbFile, outHtml] = process.argv.slice(2);
 const tmp = path.join(path.dirname(outHtml), "worker_test_index.mjs");
 const src = fs.readFileSync(path.join(root, "worker/src/index.js"), "utf8")
-  .replace('import TEMPLATE from "./template.html";', `const TEMPLATE = ${JSON.stringify(fs.readFileSync(path.join(root, "web/template.html"), "utf8"))};`);
+  .replace('import TEMPLATE from "./template.html";', () => `const TEMPLATE = ${JSON.stringify(fs.readFileSync(path.join(root, "web/template.html"), "utf8"))};`);  // hàm thay thế: tránh "$&" trong template bị hiểu là mẫu
 fs.writeFileSync(tmp, src);
 const worker = (await import(pathToFileURL(tmp).href)).default;
 

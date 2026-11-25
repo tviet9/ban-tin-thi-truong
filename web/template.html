@@ -134,6 +134,14 @@ a{color:var(--accent)}
 .wtag{font-size:.7rem;font-weight:600;padding:0 8px;border-radius:999px;border:1px solid currentColor}
 .wtag-chain_moi{color:var(--accent)} .wtag-launchpad{color:var(--i4)} .wtag-nguoi{color:var(--i3)}
 .tbar{display:block;height:4px;border-radius:2px;margin-top:5px;width:var(--w);background:var(--accent);opacity:.7}
+.trend-card summary{cursor:pointer;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;list-style:none}
+.trend-card summary::-webkit-details-marker{display:none}
+.trend-card .rank{font:600 .85rem var(--mono);color:var(--muted);grid-row:span 3}
+.trend-card .tterm{font-weight:700;overflow-wrap:anywhere}
+.trend-card .tcount{font:600 .85rem var(--mono);text-align:right}
+.trend-card .tbar,.trend-card .tacc{grid-column:2/-1}
+.trend-card .small{grid-column:2}
+.trend-card details[open] summary{margin-bottom:6px}
 .tm{font:600 .8rem var(--mono);color:var(--accent);margin-right:2px;white-space:nowrap}
 .daysel{font:inherit;font-size:.82rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
 .live{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--live)}
@@ -448,17 +456,29 @@ function renderXPosts(){
       <div class="wtext${long ? " clamp6" : ""}" id="xp-${esc(p.uid)}">${esc(p.text)}</div>${long ? `<button class="more" data-more="xp-${esc(p.uid)}">Xem thêm</button>` : ""}${cas ? `<div class="chips">${cas}</div>` : ""}</article>`;
   }).join("");
 }
+// Bỏ dấu tiếng Việt để so từ khoá ("lai suat" khớp "lãi suất")
+const plain = t => String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+function postsFor(term){
+  const k = plain(term);
+  const re = /^[$#@]/.test(term) ? null : new RegExp(`(^|[^a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9])`);
+  return (DATA.x_posts||[]).filter(p => { const t = plain(p.text); return re ? re.test(t) : t.includes(k); });
+}
 function renderXTrend(){
   const tr = DATA.x_trend || [];
   if (!tr.length) return X_HINT + `<p class="empty">Chưa đủ bài đăng X để tính trending.</p>`;
   const max = tr[0].count || 1;
-  return `<p class="note">Chủ đề, mã ($), hashtag (#), tài khoản (@) và từ khoá được nhắc nhiều nhất trong các bài X của ngày. Mỗi bài chỉ tính 1 lần cho mỗi từ.</p>
-  <div class="tbl"><table class="trend" translate="no"><thead><tr><th>#</th><th>Từ / chủ đề</th><th>Loại</th><th class="num">Số bài</th><th>Tài khoản nhắc</th></tr></thead><tbody>${tr.map((t,i) => `<tr>
-    <td class="num" data-l="Hạng">${i+1}</td>
-    <td data-l="Từ / chủ đề"><b>${esc(t.term)}</b><span class="tbar" style="--w:${Math.max(6, Math.round(t.count / max * 100))}%"></span></td>
-    <td data-l="Loại"><span class="small">${esc(t.kind)}</span></td>
-    <td class="num" data-l="Số bài">${t.count}</td>
-    <td data-l="Tài khoản nhắc"><span class="small clamp2">${t.accounts.map(a => esc(a.replace(/^X · /, ""))).join(", ")}</span>${t.links[0] ? ` <a href="${safeUrl(t.links[0])}" target="_blank" rel="noopener">xem bài</a>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<p class="note">Mã ($), hashtag (#), tài khoản (@) và từ khoá được nhắc nhiều nhất trong các bài X của ngày. Bấm vào từng dòng để xem các bài có từ đó.</p>` +
+    tr.map((t, i) => {
+      const ps = postsFor(t.term);
+      const posts = ps.map(p => `<div class="srcmsg"><b>${esc(p.group.replace(/^X · /, ""))}</b> · ${fmtTime(p.date)} · <a href="${safeUrl(p.link)}" target="_blank" rel="noopener">mở trên X</a><br>${esc(p.text)}</div>`).join("");
+      return `<article class="card trend-card">
+        <details${i < 1 ? " open" : ""}>
+          <summary><span class="rank">${i+1}</span><span class="tterm" translate="no">${esc(t.term)}</span><span class="small">${esc(t.kind)}</span>
+            <span class="tcount">${t.count} bài</span><span class="tbar" style="--w:${Math.max(6, Math.round(t.count / max * 100))}%"></span>
+            <span class="small tacc">${t.accounts.map(a => esc(a.replace(/^X · /, ""))).join(", ")}</span></summary>
+          ${posts || `<p class="note">Không còn bài nào trong ngày chứa từ này.</p>`}
+        </details></article>`;
+    }).join("");
 }
 
 function renderLinks(){
