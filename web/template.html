@@ -275,7 +275,11 @@ function bar(){
 
 function pointHtml(p){
   const m = String(p).match(/^((?:\d{1,2}\/\d{1,2}\s+)?\d{1,2}:\d{2})\s*[·\-–—:]\s*([\s\S]*)$/);
-  return m ? `<li><span class="tm">${esc(m[1])}</span> ${esc(m[2])}</li>` : `<li>${esc(p)}</li>`;
+  if (!m) return `<li>${esc(p)}</li>`;
+  // Chỉ có giờ: thêm ngày của trang đang xem (mọi sự kiện trong trang thuộc ngày đó, giờ VN)
+  const d = DATA.day || (DATA.generated_at || "").slice(0, 10);
+  const t = /\//.test(m[1]) || !d ? m[1] : `${d.slice(8,10)}/${d.slice(5,7)} ${m[1]}`;
+  return `<li><span class="tm">${esc(t)}</span> ${esc(m[2])}</li>`;
 }
 
 function eventCard(e){
