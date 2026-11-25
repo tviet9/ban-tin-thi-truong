@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: "7 * * * *"   # phút 07 mỗi giờ (GitHub có thể trễ vài phút)
   workflow_dispatch:
+    inputs:
+      reset_today:
+        description: "Xoá dữ liệu hôm nay rồi chạy lại từ 0 giờ"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -59,6 +64,7 @@ jobs:
 
       - name: Lấy tin và tóm tắt
         env:
+          RESET_TODAY: ${{ inputs.reset_today }}
           HIDE_NAMES: "1"   # repo công khai: log không in tên nhóm
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}

@@ -55,7 +55,7 @@ def tg_key(v):
 
 def tg_creds(db):
     """Ưu tiên secret trên GitHub nếu hợp lệ; nếu không, dùng bản lưu trong database."""
-    api_id = os.environ.get("TG_API_ID", "").strip()
+    api_id = os.environ.get("TG_API_ID", "").strip()  # secret hay dính dấu xuống dòng
     api_hash = os.environ.get("TG_API_HASH", "").strip()
     session = os.environ.get("TG_SESSION", "").strip()
     if api_id.isdigit() and len(api_hash) == 32 and len(session) > 100:
@@ -90,9 +90,21 @@ async def fetch_telegram(groups, min_ids, creds):
     return msgs, info
 
 
+def reset_today(db):
+    """Xoá dữ liệu hôm nay (dùng khi lượt trước lỗi giữa chừng). Giữ nguyên danh sách nguồn."""
+    d = datetime.now(VN).strftime("%Y-%m-%d")
+    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats"):
+        db.query(f"DELETE FROM {t} WHERE day = ?", [d])
+    db.query("DELETE FROM tokens")
+    db.query("DELETE FROM state WHERE key IN ('min_ids', 'last_run', 'last_web_run')")
+    log(f"[reset] đã xoá dữ liệu ngày {d}")
+
+
 def main():
-    keys = {"gemini": os.environ.get("GEMINI_API_KEY", ""), "groq": os.environ.get("GROQ_API_KEY", "")}
+    keys = {"gemini": os.environ.get("GEMINI_API_KEY", "").strip(), "groq": os.environ.get("GROQ_API_KEY", "").strip()}
     db = D1()
+    if os.environ.get("RESET_TODAY") == "true":
+        reset_today(db)
     src = load_sources(db)
     now = datetime.now(timezone.utc)
     log(f"[nguồn] {len(src['telegram'])} nhóm, {len(src['website'])} trang web, {len(src['sender'])} người theo dõi")
@@ -127,7 +139,15 @@ def main():
         db.set_state("last_web_run", now.isoformat())
     log(f"[đọc] {len(msgs)} tin mới")
 
-    kept, stats = filter_messages(msgs)
+    # Bỏ tin đã lưu ở lượt trước (khi lượt trước lỗi giữa chừng) để không đếm trùng
+    uids = [m["uid"] for m in msgs]
+    stored = set()
+    for i in range(0, len(uids), 90):
+        part = uids[i:i + 90]
+        stored |= {r["uid"] for r in db.query(f"SELECT uid FROM messages WHERE uid IN ({','.join('?' * len(part))})", part)}
+    if stored:
+        log(f"[đọc] bỏ {len(stored)} tin đã xử lý ở lượt trước")
+    kept, stats = filter_messages([m for m in msgs if m["uid"] not in stored])
     log(f"[lọc] {stats}")
     days = sorted({vn_day(m["date"]) for m in kept} | {datetime.now(VN).strftime("%Y-%m-%d")})
     today = datetime.now(VN).strftime("%Y-%m-%d")
@@ -178,10 +198,7 @@ def main():
     db.upsert("token_days", ["day", "address", "data"], token_rows, conflict=["day", "address"])
     log(f"[token] {len(dex)} token, {len(new_tokens)} lần đầu")
 
-    # 4. Lưu tin, theo dõi, link
-    db.upsert("messages", ["uid", "day", "date", "data"], [[m["uid"], vn_day(m["date"]), m["date"], json.dumps({
-        "link": m["link"], "group": m["group"], "date": m["date"], "sender": m.get("sender"), "text": m["text"][:400]},
-        ensure_ascii=False)] for m in kept], conflict=["uid"])
+    # 4. Lưu theo dõi, link (bảng messages ghi sau cùng, khi đã tóm tắt xong)
     db.upsert("watch", ["uid", "day", "date", "data"], [[m["uid"], vn_day(m["date"]), m["date"], json.dumps({
         "uid": m["uid"], "tags": m["watch"], "group": m["group"], "date": m["date"], "sender": m.get("sender"),
         "username": m.get("sender_username"), "text": m["text"][:1500], "links": m["links"][:5],
@@ -232,6 +249,10 @@ def main():
         cur["kept"] = cur.get("kept", 0) + len(kpart)
         cur["watch"] = cur.get("watch", 0) + sum(1 for m in kpart if m["watch"])
         db.upsert("stats", ["day", "data"], [[d, json.dumps(cur)]], conflict=["day"])
+    # Ghi tin đã xử lý (đánh dấu xong)
+    db.upsert("messages", ["uid", "day", "date", "data"], [[m["uid"], vn_day(m["date"]), m["date"], json.dumps({
+        "link": m["link"], "group": m["group"], "date": m["date"], "sender": m.get("sender"), "text": m["text"][:400]},
+        ensure_ascii=False)] for m in kept], conflict=["uid"])
     db.set_state("min_ids", min_ids)
     db.set_state("last_run", now.isoformat())
 
