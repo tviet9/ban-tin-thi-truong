@@ -16,6 +16,7 @@ import dexscreener  # noqa: E402
 import summarize as sm  # noqa: E402
 import telegram_fetch  # noqa: E402
 import web_fetch  # noqa: E402
+from x_trend import trending  # noqa: E402
 from d1 import D1  # noqa: E402
 from filters import filter_messages  # noqa: E402
 
@@ -50,7 +51,7 @@ def start_of_today():
 
 def load_sources(db):
     rows = db.query("SELECT kind, value, title FROM sources ORDER BY kind, value")
-    out = {"telegram": [], "website": [], "sender": []}
+    out = {"telegram": [], "website": [], "sender": [], "x": []}
     for r in rows:
         out.setdefault(r["kind"], []).append(r)
     return out
@@ -134,11 +135,17 @@ def main():
         if i and not r.get("title"):
             db.query("UPDATE sources SET title = ? WHERE kind = 'telegram' AND value = ?", [i["real_title"], r["value"]])
 
-    # 2. Trang web (RSS), bỏ bài đã lưu
-    if src["website"]:
+    # 2. Trang web và tài khoản X (cả hai đọc qua RSS), bỏ bài đã lưu
+    xmsgs = []
+    if src["website"] or src["x"]:
         last_web = db.get_state("last_web_run")
         since = backfill_since() or (datetime.fromisoformat(last_web) - timedelta(hours=2) if last_web else start_of_today())
         wmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": r.get("title")} for r in src["website"]], since)
+        if src["x"]:
+            xmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": "X · " + (r.get("title") or "X")} for r in src["x"]], since)
+            for m in xmsgs:
+                m["source"] = "x"
+            wmsgs += xmsgs
         web_seen = db.get_state("web_seen", [])
         msgs += [m for m in wmsgs if m["uid"] not in set(web_seen)]
         web_seen = (web_seen + [m["uid"] for m in wmsgs if m["uid"] not in set(web_seen)])[-5000:]
@@ -164,6 +171,7 @@ def main():
         for ca in m["contracts"]:
             x = mentions[(vn_day(m["date"]), ca)]  # token nhắc lúc 23:5x vẫn thuộc ngày đó
             x["uids"].add(m["uid"])
+            x["from_x"] = x.get("from_x") or m.get("source") == "x"
             x["groups"].add(m["group"])
             x["first"] = min(filter(None, [x["first"], m["date"]]))
             if len(x["links"]) < 5:
@@ -197,6 +205,7 @@ def main():
         uids = sorted(set(prev.get("uids", [])) | (mm["uids"] if mm else set()))
         t = {**info_,
              "uids": uids,
+             "x": bool(prev.get("x") or (mm and mm.get("from_x"))),
              "mentions": len(uids) if uids else prev.get("mentions", 0),
              "groups": sorted(set(prev.get("groups", [])) | (mm["groups"] if mm else set())),
              "first_seen": prev.get("first_seen") or (mm["first"] if mm else None),
@@ -214,6 +223,19 @@ def main():
     db.upsert("tokens", ["address", "first_price", "first_at", "first_mention", "symbol"], new_tokens, conflict=["address"])
     db.upsert("token_days", ["day", "address", "data"], token_rows, conflict=["day", "address"])
     log(f"[token] {len(dex)} token, {len(new_tokens)} lần đầu")
+
+    # 3b. Bài đăng X: lưu tất cả, tính lại trending của các ngày có bài mới
+    new_x = [m for m in xmsgs if m["uid"] in {x["uid"] for x in msgs}]
+    if new_x:
+        from filters import extract_contracts
+        db.upsert("x_posts", ["uid", "day", "date", "data"], [[m["uid"], vn_day(m["date"]), m["date"], json.dumps({
+            "uid": m["uid"], "group": m["group"], "date": m["date"], "text": m["text"][:800], "link": m["link"],
+            "contracts": [c for c in extract_contracts(m["text"]) if c in dex]}, ensure_ascii=False)] for m in new_x],
+            conflict=["uid"])
+        for d in sorted({vn_day(m["date"]) for m in new_x}):
+            posts = [json.loads(r["data"]) for r in db.query("SELECT data FROM x_posts WHERE day = ?", [d])]
+            db.upsert("x_trend", ["day", "data"], [[d, json.dumps(trending(posts), ensure_ascii=False)]], conflict=["day"])
+        log(f"[x] {len(new_x)} bài mới")
 
     # 4. Lưu theo dõi, link (bảng messages ghi sau cùng, khi đã tóm tắt xong)
     db.upsert("watch", ["uid", "day", "date", "data"], [[m["uid"], vn_day(m["date"]), m["date"], json.dumps({
@@ -276,14 +298,14 @@ def main():
         "link": m["link"], "group": m["group"], "date": m["date"], "sender": m.get("sender"), "text": m["text"][:400]},
         ensure_ascii=False)] for m in kept], conflict=["uid"])
     db.set_state("min_ids", min_ids)
-    if src["website"]:
+    if src["website"] or src["x"]:
         db.set_state("web_seen", web_seen)
         db.set_state("last_web_run", now.isoformat())
     db.set_state("last_run", now.isoformat())
 
     # 8. Xoá dữ liệu cũ hơn 1 năm
     cutoff = (datetime.now(VN) - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
-    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats"):
+    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats", "x_posts", "x_trend"):
         db.query(f"DELETE FROM {t} WHERE day < ?", [cutoff])
     log("[xong]")
 

@@ -34,7 +34,8 @@ def setup():
     con.executescript((ROOT / "worker" / "schema.sql").read_text())
     now = datetime.now(timezone.utc).isoformat()
     con.executemany("INSERT INTO sources VALUES (?,?,?,?)", [
-        ("telegram", "-1001", None, now), ("telegram", "-1002", "Tin vĩ mô", now), ("sender", "admin_vimo", None, now)])
+        ("telegram", "-1001", None, now), ("telegram", "-1002", "Tin vĩ mô", now), ("sender", "admin_vimo", None, now),
+        ("x", "https://rss.app/feeds/elon.xml", "@elonmusk", now)])
     con.commit()
 
 
@@ -76,6 +77,19 @@ def main():
             {"topic": "crypto", "tags": [], "title": "Sự kiện giờ", "points": ["10:00 · ý"], "importance": 3,
              "source_ids": ids[:2]}]}
     run_hourly.sm.call = fake_call
+    base = datetime.now(timezone.utc) - timedelta(minutes=20)
+
+    def fake_web(sites, since, site_offset=100):
+        out = []
+        if not sites:
+            return [], []
+        for i, t in enumerate(["$DOGE to the moon, Fed lãi suất #crypto", "$doge pump again @cz_binance",
+                               "CA 9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT", "Ăn sáng thôi"]):
+            out.append({"uid": f"w-x{i}", "id": i, "group_id": "x", "group": sites[0]["title"], "sender": None,
+                        "date": (base + timedelta(minutes=i)).isoformat(), "text": t, "urls": [],
+                        "link": f"https://x.com/elonmusk/status/{i}", "source": "web"})
+        return out, []
+    run_hourly.web_fetch.fetch = fake_web
     run_hourly.main()
     # chạy lần 2: không có tin mới, token đã có giá lần đầu
     run_hourly.fetch_telegram = lambda g, m, c: _empty()
@@ -86,6 +100,11 @@ def main():
     print("rows:", counts)
     title = con.execute("SELECT title FROM sources WHERE value='-1001'").fetchone()[0]
     assert title == "Nhóm Crypto (thật)", title
+    xp = con.execute("SELECT COUNT(*) FROM x_posts").fetchone()[0]
+    tr = json.loads(con.execute("SELECT data FROM x_trend").fetchone()[0])
+    assert xp == 4, xp
+    assert tr[0]["term"] == "$DOGE" and tr[0]["count"] == 2, tr[:2]
+    assert any(json.loads(r[0]).get("x") for r in con.execute("SELECT data FROM token_days")), "CA nhắc trên X phải có cờ x"
     assert counts["digests"] == 1 and counts["tokens"] == 2 and counts["watch"] >= 1 and counts["messages"] > 10
     td = [json.loads(r[0]) for r in con.execute("SELECT data FROM token_days")]
     assert all(t["change_since_first"] is not None for t in td), "lần 2 phải có % so với lần đầu"

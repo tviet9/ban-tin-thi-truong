@@ -133,6 +133,15 @@ a{color:var(--accent)}
 @media (max-width:600px){.stats{display:grid;grid-template-columns:repeat(3,auto);gap:10px 18px;justify-content:start}}
 .wtag{font-size:.7rem;font-weight:600;padding:0 8px;border-radius:999px;border:1px solid currentColor}
 .wtag-chain_moi{color:var(--accent)} .wtag-launchpad{color:var(--i4)} .wtag-nguoi{color:var(--i3)}
+.tbar{display:block;height:4px;border-radius:2px;margin-top:5px;width:var(--w);background:var(--accent);opacity:.7}
+.trend-card summary{cursor:pointer;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;list-style:none}
+.trend-card summary::-webkit-details-marker{display:none}
+.trend-card .rank{font:600 .85rem var(--mono);color:var(--muted);grid-row:span 3}
+.trend-card .tterm{font-weight:700;overflow-wrap:anywhere}
+.trend-card .tcount{font:600 .85rem var(--mono);text-align:right}
+.trend-card .tbar,.trend-card .tacc{grid-column:2/-1}
+.trend-card .small{grid-column:2}
+.trend-card details[open] summary{margin-bottom:6px}
 .tm{font:600 .8rem var(--mono);color:var(--accent);margin-right:2px;white-space:nowrap}
 .daysel{font:inherit;font-size:.82rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
 .live{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--live)}
@@ -258,11 +267,15 @@ const NAV = [
   {id:"crypto", label:"Crypto", news:["crypto"]},
   {id:"tokens", label:"Bảng token (CA)", sub:true},
   {id:"watch", label:"Theo dõi", sub:true},
+  {head:"X (Twitter)"},
+  {id:"x_posts", label:"Bài đăng X"},
+  {id:"x_trend", label:"Trending", sub:true},
+  {id:"x_ca", label:"CA từ X", sub:true},
   {head:"Khác"},
   {id:"links", label:"Link"},
   {id:"settings", label:"Cài đặt nguồn"},
 ];
-const state = {nav:"all", mode:"digest", minImp:1, tag:"all", watch:"all", tokLimit:100};
+const state = {nav:"all", mode:"digest", minImp:1, tag:"all", watch:"all", tokLimit:100, xacc:"all"};
 try { Object.assign(state, JSON.parse(localStorage.getItem("digest-state-v2") || "{}")); } catch(e) {}
 const navIds = NAV.filter(n => n.id).map(n => n.id);
 if (navIds.includes(location.hash.slice(1))) state.nav = location.hash.slice(1);
@@ -312,7 +325,10 @@ function count(n){
   if (n.id === "tokens") return DATA.tokens.length;
   if (n.id === "watch") return (DATA.watch||[]).length;
   if (n.id === "links") return DATA.links.length;
-  if (n.id === "settings") { const s = DATA.sources || {}; return (s.telegram||[]).length + (s.websites||[]).length; }
+  if (n.id === "x_posts") return (DATA.x_posts||[]).length;
+  if (n.id === "x_trend") return (DATA.x_trend||[]).length;
+  if (n.id === "x_ca") return DATA.tokens.filter(t => t.x).length;
+  if (n.id === "settings") { const s = DATA.sources || {}; return (s.telegram||[]).length + (s.websites||[]).length + (s.x||[]).length; }
   return allEvents().filter(e => inNav(e, n)).length;
 }
 
@@ -328,6 +344,10 @@ function bar(){
     h += `<div class="seg" role="group" aria-label="Cách xem"><button data-mode="digest" aria-pressed="${state.mode==="digest"}">Tổng hợp</button><button data-mode="hours" aria-pressed="${state.mode==="hours"}">Theo giờ</button></div>`;
     h += `<div class="chips">` + [1,3,4,5].map(v => `<button class="chip" data-imp="${v}" aria-pressed="${state.minImp===v}">${v===1?"Mọi mức":"Từ "+v+" điểm"}</button>`).join("") + `</div>`;
     h += `<div class="chips">` + [["all","Mọi nhãn"], ...Object.entries(TAGS)].map(([k,l]) => `<button class="chip" data-tag="${k}" aria-pressed="${state.tag===k}">${esc(l)}</button>`).join("") + `</div>`;
+  } else if (n.id === "x_posts") {
+    const acc = [...new Set((DATA.x_posts||[]).map(p => p.group))];
+    h += `<div class="chips">` + [["all","Tất cả"], ...acc.map(a => [a, a.replace(/^X · /, "")])].map(([k,l]) =>
+      `<button class="chip" data-xacc="${esc(k)}" aria-pressed="${state.xacc===k}">${esc(l)}</button>`).join("") + `</div>`;
   } else if (n.id === "watch") {
     const w = DATA.watch || [];
     const opts = [["all","Tất cả"], ...Object.entries(DATA.watch_labels || {})];
@@ -385,9 +405,10 @@ function renderNews(n){
   return ov + (ev.length ? ev.map(eventCard).join("") : `<p class="empty">Chưa có sự kiện nào trong mục này${state.minImp>1||state.tag!=="all"?" khớp bộ lọc":""}.</p>`);
 }
 
-function renderTokens(){
-  if (!DATA.tokens.length) return `<p class="empty">Chưa thấy contract nào có giao dịch trên DexScreener.</p>`;
-  const rows = DATA.tokens.slice(0, state.tokLimit).map((t,i) => {
+function renderTokens(onlyX){
+  const list = onlyX ? DATA.tokens.filter(t => t.x) : DATA.tokens;
+  if (!list.length) return `<p class="empty">${onlyX ? "Chưa có CA nào được nhắc trên các tài khoản X bạn theo dõi." : "Chưa thấy contract nào có giao dịch trên DexScreener."}</p>`;
+  const rows = list.slice(0, state.tokLimit).map((t,i) => {
     const ch = t.change_since_first;
     const cls = ch > 0 ? "up" : ch < 0 ? "down" : "";
     const chg = ch == null ? `<span class="first">Lần đầu được nhắc</span>`
@@ -405,7 +426,7 @@ function renderTokens(){
       <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
   }).join("");
   return `<p class="note">Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
-  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${DATA.tokens.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, DATA.tokens.length - state.tokLimit)} token (còn ${DATA.tokens.length - state.tokLimit})</button>` : ""}`;
+  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
 }
 
 function renderWatch(){
@@ -423,6 +444,43 @@ function renderWatch(){
   }).join("");
 }
 
+const X_HINT = `<p class="note">Thêm tài khoản X ở <a href="#settings">Cài đặt nguồn</a> (loại "Tài khoản X", dán link RSS tạo ở rss.app).</p>`;
+function renderXPosts(){
+  const ps = (DATA.x_posts||[]).filter(p => state.xacc === "all" || p.group === state.xacc);
+  if (!ps.length) return X_HINT + `<p class="empty">Chưa có bài đăng X nào trong ngày này.</p>`;
+  return ps.map(p => {
+    const cas = (p.contracts||[]).map(a => { const t = DATA.tokens.find(t => t.address === a);
+      return `<span class="ca-pill" translate="no" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd) : short(a)}</span>`; }).join("");
+    const long = (p.text||"").length > 400;
+    return `<article class="card"><div class="meta"><b>${esc(p.group.replace(/^X · /, ""))}</b><span>${fmtTime(p.date)}</span><a href="${safeUrl(p.link)}" target="_blank" rel="noopener">mở trên X</a></div>
+      <div class="wtext${long ? " clamp6" : ""}" id="xp-${esc(p.uid)}">${esc(p.text)}</div>${long ? `<button class="more" data-more="xp-${esc(p.uid)}">Xem thêm</button>` : ""}${cas ? `<div class="chips">${cas}</div>` : ""}</article>`;
+  }).join("");
+}
+// Bỏ dấu tiếng Việt để so từ khoá ("lai suat" khớp "lãi suất")
+const plain = t => String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+function postsFor(term){
+  const k = plain(term);
+  const re = /^[$#@]/.test(term) ? null : new RegExp(`(^|[^a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^a-z0-9])`);
+  return (DATA.x_posts||[]).filter(p => { const t = plain(p.text); return re ? re.test(t) : t.includes(k); });
+}
+function renderXTrend(){
+  const tr = DATA.x_trend || [];
+  if (!tr.length) return X_HINT + `<p class="empty">Chưa đủ bài đăng X để tính trending.</p>`;
+  const max = tr[0].count || 1;
+  return `<p class="note">Mã ($), hashtag (#), tài khoản (@) và từ khoá được nhắc nhiều nhất trong các bài X của ngày. Bấm vào từng dòng để xem các bài có từ đó.</p>` +
+    tr.map((t, i) => {
+      const ps = postsFor(t.term);
+      const posts = ps.map(p => `<div class="srcmsg"><b>${esc(p.group.replace(/^X · /, ""))}</b> · ${fmtTime(p.date)} · <a href="${safeUrl(p.link)}" target="_blank" rel="noopener">mở trên X</a><br>${esc(p.text)}</div>`).join("");
+      return `<article class="card trend-card">
+        <details${i < 1 ? " open" : ""}>
+          <summary><span class="rank">${i+1}</span><span class="tterm" translate="no">${esc(t.term)}</span><span class="small">${esc(t.kind)}</span>
+            <span class="tcount">${t.count} bài</span><span class="tbar" style="--w:${Math.max(6, Math.round(t.count / max * 100))}%"></span>
+            <span class="small tacc">${t.accounts.map(a => esc(a.replace(/^X · /, ""))).join(", ")}</span></summary>
+          ${posts || `<p class="note">Không còn bài nào trong ngày chứa từ này.</p>`}
+        </details></article>`;
+    }).join("");
+}
+
 function renderLinks(){
   if (!DATA.links.length) return `<p class="empty">Chưa có link nào.</p>`;
   return DATA.links.map(l => `<div class="card"><a class="u" href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>
@@ -434,6 +492,7 @@ const KINDS = {
   telegram: {label:"Nhóm Telegram", ph:"https://web.telegram.org/a/#-100… hoặc @tennhom"},
   website: {label:"Trang web / báo", ph:"https://vnexpress.net/rss/kinh-doanh.rss…"},
   sender: {label:"Người theo dõi", ph:"@username…"},
+  x: {label:"Tài khoản X (link RSS)", ph:"https://rss.app/feeds/….xml"},
 };
 function parseTelegram(v){
   v = v.trim();
@@ -447,6 +506,7 @@ function renderSettings(){
   const block = (title, rows, empty) => `<section class="set"><h3>${title}</h3>${rows.length ? rows.join("") : `<p class="note">${empty}</p>`}</section>`;
   const tg = (s.telegram||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||g.id)}</b><div class="v">${esc(g.id)}</div></div>${del("telegram", g.id)}</div>`);
   const web = (s.websites||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div></div>${del("website", w.url)}</div>`);
+  const xs = (s.x||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||"X")}</b><div class="v">${esc(w.url)}</div></div>${del("x", w.url)}</div>`);
   const ppl = (s.watch_senders||[]).map(p => `<div class="srcrow"><div><b>@${esc(String(p).replace(/^@/,""))}</b></div>${del("sender", p)}</div>`);
   const note = `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 1 giờ). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`;
   return note + `<section class="set"><h3>Thêm nguồn</h3>
@@ -458,6 +518,7 @@ function renderSettings(){
     </form><div class="msg" id="f-msg" role="status"></div></section>`
     + block("Nhóm Telegram", tg, "Chưa có nhóm nào.")
     + block("Trang web / báo", web, "Chưa có trang nào. Thêm link RSS của báo để lấy tin kinh tế, chứng khoán.")
+    + block("Tài khoản X", xs, "Chưa có tài khoản nào. X không cho đọc trực tiếp: vào rss.app → Twitter/X Feed → dán link x.com/tên_tài_khoản → chép link RSS nhận được → chọn loại \"Tài khoản X\" ở trên, dán link RSS, tên hiển thị ghi @tên_tài_khoản.")
     + block("Người theo dõi", ppl, "Chưa có ai.");
 }
 async function api(method, body){
@@ -478,6 +539,8 @@ document.addEventListener("submit", async ev => {
   if (kind === "telegram") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100… hoặc @tennhom."; return; } }
   if (kind === "website" && !/^https?:\/\//.test(value)) value = "https://" + value;
   if (kind === "sender") value = value.replace(/^@/, "");
+  if (kind === "x" && /^(https?:\/\/)?(www\.)?(x|twitter)\.com\//i.test(value)) { msg.className = "msg err"; msg.textContent = "Link x.com chưa đọc được trực tiếp. Tạo link RSS cho tài khoản này ở rss.app rồi dán link RSS."; return; }
+  if (kind === "x" && !/^https?:\/\//.test(value)) value = "https://" + value;
   try { const j = await api("POST", {kind, value, title}); DATA.sources = j.sources; render(); const m = $("#f-msg"); m.className = "msg ok"; m.textContent = "Đã thêm. Có hiệu lực từ lần cập nhật kế tiếp."; }
   catch(e) { msg.className = "msg err"; msg.textContent = "Chưa thêm được: " + e.message; }
 });
@@ -530,7 +593,9 @@ const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)")
 function render(){
   side(); bar();
   const n = cur();
-  $("#view").innerHTML = n.id === "tokens" ? renderTokens() : n.id === "watch" ? renderWatch() : n.id === "links" ? renderLinks()
+  $("#view").innerHTML = n.id === "tokens" ? renderTokens() : n.id === "x_ca" ? renderTokens(true)
+    : n.id === "x_posts" ? renderXPosts() : n.id === "x_trend" ? renderXTrend()
+    : n.id === "watch" ? renderWatch() : n.id === "links" ? renderLinks()
     : n.id === "settings" ? renderSettings() : renderNews(n);
   // Đổi mục: nội dung mới hiện mờ dần (ngắn, không trượt), tắt khi người dùng chọn giảm chuyển động
   if (fadeIn && !calm() && $("#view").animate) $("#view").animate([{opacity:0},{opacity:1}], {duration:160, easing:"cubic-bezier(.23,1,.32,1)"});
@@ -544,6 +609,7 @@ document.addEventListener("click", ev => {
   else if (b.dataset.imp) state.minImp = Number(b.dataset.imp);
   else if (b.dataset.tag) state.tag = b.dataset.tag;
   else if (b.dataset.watch) state.watch = b.dataset.watch;
+  else if (b.dataset.xacc) state.xacc = b.dataset.xacc;
   else if (b.dataset.tokmore) state.tokLimit += 100;
   else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
   else if (b.id === "refreshBtn") { refreshNow(b); return; }
