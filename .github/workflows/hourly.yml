@@ -4,6 +4,10 @@ on:
     - cron: "37 * * * *"  # dự phòng: lịch chính do Cloudflare gọi lúc phút 07
   workflow_dispatch:
     inputs:
+      backfill_from:
+        description: "Lấy lại tin từ 0h ngày (YYYY-MM-DD, giờ VN). Bỏ trống nếu không cần"
+        type: string
+        default: ""
       reset_today:
         description: "Xoá dữ liệu hôm nay rồi chạy lại từ 0 giờ"
         type: boolean
@@ -19,7 +23,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60  # lấy lại ngày cũ cần lâu hơn
     steps:
       - uses: actions/checkout@v4
       - name: Kiểm tra secret
@@ -66,6 +70,7 @@ jobs:
         env:
           RESET_TODAY: ${{ inputs.reset_today }}
           TRIGGER: ${{ github.event_name }}
+          BACKFILL_FROM: ${{ inputs.backfill_from }}
           HIDE_NAMES: "1"   # repo công khai: log không in tên nhóm
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}

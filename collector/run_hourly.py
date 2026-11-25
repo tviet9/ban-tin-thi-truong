@@ -35,6 +35,14 @@ def vn_hour(iso):
     return datetime.fromisoformat(iso).astimezone(VN).strftime("%Y-%m-%d %H:00")
 
 
+def backfill_since():
+    """BACKFILL_FROM=YYYY-MM-DD: đọc lại tin từ 0h (giờ VN) của ngày đó."""
+    d = os.environ.get("BACKFILL_FROM", "").strip()
+    if not d:
+        return None
+    return datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=VN).astimezone(timezone.utc)
+
+
 def start_of_today():
     now = datetime.now(VN)
     return now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
@@ -72,8 +80,10 @@ async def fetch_telegram(groups, min_ids, creds):
     try:
         keys = [str(g["value"]) for g in groups]
         names = {str(g["value"]): g.get("title") for g in groups}
-        mins = {tg_key(k): min_ids[k] for k in keys if min_ids.get(k)}
-        msgs, ginfo, max_ids = await telegram_fetch.fetch_async(client, [tg_key(k) for k in keys], start_of_today(), mins)
+        backfill = backfill_since()
+        # Lấy lại từ một ngày cũ: bỏ qua mốc tin cuối, đọc lại từ 0h ngày đó (tin đã xử lý sẽ bị bỏ qua sau)
+        mins = {} if backfill else {tg_key(k): min_ids[k] for k in keys if min_ids.get(k)}
+        msgs, ginfo, max_ids = await telegram_fetch.fetch_async(client, [tg_key(k) for k in keys], backfill or start_of_today(), mins)
         for gid, gi in ginfo.items():
             info[str(gid)] = {"real_title": gi["title"]}
         for m in msgs:
@@ -127,7 +137,7 @@ def main():
     # 2. Trang web (RSS), bỏ bài đã lưu
     if src["website"]:
         last_web = db.get_state("last_web_run")
-        since = datetime.fromisoformat(last_web) - timedelta(hours=2) if last_web else start_of_today()
+        since = backfill_since() or (datetime.fromisoformat(last_web) - timedelta(hours=2) if last_web else start_of_today())
         wmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": r.get("title")} for r in src["website"]], since)
         web_seen = db.get_state("web_seen", [])
         msgs += [m for m in wmsgs if m["uid"] not in set(web_seen)]
