@@ -131,8 +131,10 @@ async function handleSources(req, env) {
 export default {
   // Lịch chạy Cloudflare (phút 07 mỗi giờ): đúng giờ hơn lịch của GitHub
   async scheduled(event, env) {
-    if (!env.GH_TOKEN || !env.GH_REPO) return;
-    const r = await dispatch(env);
+    const r = env.GH_TOKEN && env.GH_REPO ? await dispatch(env) : { status: 0 };
+    // Ghi lại lần chạy lịch gần nhất để kiểm tra (xem ở /api/status)
+    await env.DB.prepare("INSERT INTO state (key, value) VALUES ('cron_last', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .bind(JSON.stringify({ at: new Date().toISOString(), github_status: r.status })).run();
     if (r.status !== 204) throw new Error(`GitHub từ chối lịch chạy: ${r.status}`);
   },
   async fetch(req, env) {
@@ -143,7 +145,9 @@ export default {
     if (url.pathname === "/api/refresh" && req.method === "POST") return handleRefresh(req, env);
     if (url.pathname === "/api/status") {
       const r = await env.DB.prepare("SELECT value FROM state WHERE key = 'last_run'").first();
-      return json({ last_run: r ? parse(r.value, null) : null, refresh: !!(env.GH_TOKEN && env.GH_REPO) });
+      const c = await env.DB.prepare("SELECT value FROM state WHERE key = 'cron_last'").first();
+      return json({ last_run: r ? parse(r.value, null) : null, cron_last: c ? parse(c.value, null) : null,
+                    refresh: !!(env.GH_TOKEN && env.GH_REPO) });
     }
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("day") || "") ? url.searchParams.get("day") : vnDay();
