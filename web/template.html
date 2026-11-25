@@ -25,8 +25,9 @@
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}
 *{box-sizing:border-box}
-html{scroll-padding-top:88px} /* phần tử được chọn bằng bàn phím không bị thanh lọc dính che */
+html{scroll-padding-top:88px;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%} /* không che phần tử đang chọn; bỏ vệt sáng khi chạm; chữ không tự phóng khi xoay ngang */
 button,a,select,input,summary{touch-action:manipulation}
+button,summary,.chip,.nav{user-select:none;-webkit-user-select:none} /* nhấn giữ nút không bôi đen chữ */
 .skip{position:absolute;left:12px;top:-48px;z-index:20;background:var(--accent);color:var(--surface);padding:8px 12px;border-radius:7px;font-weight:600}
 .skip:focus{top:12px}
 body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);margin:0;-webkit-font-smoothing:antialiased;transition:background-color .25s ease,color .25s ease}
@@ -41,7 +42,7 @@ h1{font-size:1.5rem;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.0
 .stat b{font:600 1.1rem var(--mono);font-variant-numeric:tabular-nums}
 .stat span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);max-width:1480px;margin:0 auto;align-items:start}
-nav.side{position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;overflow-y:auto;padding:16px 10px 24px max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:2px}
+nav.side{position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;max-height:100dvh;overflow-y:auto;padding:16px 10px 24px max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:2px}
 .navh{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 10px 4px;font-weight:600}
 button{font:inherit;color:inherit;cursor:pointer}
 .nav{display:flex;justify-content:space-between;align-items:center;gap:8px;border:0;background:none;text-align:left;padding:7px 10px;border-radius:7px;font-weight:500;color:var(--ink);width:100%}
@@ -123,6 +124,12 @@ a{color:var(--accent)}
 .wtag-chain_moi{color:var(--accent)} .wtag-launchpad{color:var(--i4)} .wtag-nguoi{color:var(--i3)}
 .tm{font:600 .8rem var(--mono);color:var(--accent);margin-right:2px;white-space:nowrap}
 .daysel{font:inherit;font-size:.82rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+.toprow{display:flex;align-items:center;gap:10px}
+.iconbtn{display:inline-grid;place-items:center;width:36px;height:36px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink)}
+.iconbtn .i-sun{display:none}
+.is-dark .iconbtn .i-sun{display:block}
+.is-dark .iconbtn .i-moon{display:none}
+@media (hover:hover) and (pointer:fine){.iconbtn:hover{border-color:var(--accent);color:var(--accent)}}
 .theme{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted)}
 .set{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
 .set h3{margin:0;font-size:1rem}
@@ -142,15 +149,24 @@ a{color:var(--accent)}
 .msg{font-size:.85rem}
 .msg.err{color:var(--down)} .msg.ok{color:var(--up)}
 /* Phản hồi ngay khi nhấn (không đợi thả tay) */
-button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
 @media (prefers-reduced-motion:no-preference){
   button{transition:transform .1s var(--ease),background-color .15s ease,color .15s ease}
   button:active{transform:scale(.97)}
   .event,.card{transition:border-color .15s ease}
 }
 @media (hover:hover) and (pointer:fine){.event:hover,.card:hover{border-color:var(--accent)}.nav:not([aria-current="true"]):hover{background:var(--nav)}}
+@media (pointer:coarse){
+  input,select,textarea{font-size:16px!important}
+  .chip,.seg button,.btn,.copy,.nav{min-height:40px}
+  .chip,.seg button{display:inline-flex;align-items:center}
+  .more,details.src summary{padding-block:8px}
+}
 @media (prefers-reduced-transparency:reduce){.bar,nav.side{background:var(--bg)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
 @media (prefers-contrast:more){:root{--line:#9aa3af;--muted:#3d4450}.bar::after{display:none}.bar{border-bottom:1px solid var(--line)}}
+@media (min-width:861px) and (max-width:1100px){
+  .shell{grid-template-columns:196px minmax(0,1fr)}
+  .nav.sub{padding-left:18px}
+}
 @media (max-width:860px){
   .shell{grid-template-columns:minmax(0,1fr)}
   nav.side{min-width:0}
@@ -162,15 +178,37 @@ button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
   .bar::after{display:none}
   table{min-width:760px}
 }
+@media (max-width:640px){
+  table{min-width:0}
+  .tbl{overflow:visible;background:none;border:0}
+  table,tbody,tr,td{display:block}
+  thead{display:none}
+  tr{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+  td{border:0;padding:0;text-align:left!important;white-space:normal!important}
+  td[data-l]::before{content:attr(data-l);display:block;font:600 .66rem var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  td:first-child,td:last-child{grid-column:1/-1}
+  td:last-child .acts{flex-direction:row;align-items:center;gap:12px}
+  .stats{grid-template-columns:repeat(3,minmax(0,auto))}
+  header.top .in > div:last-child{align-items:flex-start!important}
+  /* điện thoại: nút mặt trăng/mặt trời lên góc phải, cùng hàng tiêu đề */
+  header.top .in{position:relative}
+  #themeBtn{position:absolute;top:14px;right:0}
+  h1{padding-right:48px}
+}
 </style>
 
 <a class="skip" href="#view">Bỏ qua, đến nội dung</a>
 <header class="top gut"><div class="in">
   <div><h1>Bản tin Thị trường</h1><div class="sub" id="sub"></div></div>
   <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
+    <div class="toprow">
+      <div class="theme" id="dayBox" hidden><label for="daySel">Ngày</label><select id="daySel" class="daysel"></select></div>
+      <button class="iconbtn" id="themeBtn" type="button" aria-label="Chuyển sang nền tối" title="Chuyển sang nền tối">
+        <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
     <div class="stats" id="stats"></div>
-    <div class="theme" id="dayBox" hidden><label for="daySel">Ngày</label><select id="daySel" class="daysel"></select></div>
-    <div class="theme">Giao diện <div class="seg" role="group" aria-label="Giao diện"><button data-theme-set="light" id="th-light">Sáng</button><button data-theme-set="dark" id="th-dark">Tối</button><button data-theme-set="auto" id="th-auto">Theo máy</button></div></div>
   </div>
 </div></header>
 <div class="shell">
@@ -333,13 +371,13 @@ function renderTokens(){
     const isNew = t.age_hours != null && t.age_hours < 72;
     return `<tr>
       <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span></td>
-      <td class="num">${fmtPrice(t.price_usd)}<span class="small">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
-      <td class="num">${chg}</td>
-      <td class="num">${fmtUsd(t.volume_24h)}</td>
-      <td class="num">${fmtUsd(t.liquidity_usd)}</td>
-      <td class="num">${fmtUsd(t.market_cap ?? t.fdv)}</td>
-      <td class="num">${esc(t.age)}</td>
-      <td class="num">${t.mentions}<span class="small clamp2" title="${esc(t.groups.join(", "))}">${t.groups.map(esc).join(", ")}</span></td>
+      <td class="num" data-l="Giá hiện tại">${fmtPrice(t.price_usd)}<span class="small">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
+      <td class="num" data-l="Thay đổi">${chg}</td>
+      <td class="num" data-l="Vol 24h">${fmtUsd(t.volume_24h)}</td>
+      <td class="num" data-l="Thanh khoản">${fmtUsd(t.liquidity_usd)}</td>
+      <td class="num" data-l="Vốn hoá">${fmtUsd(t.market_cap ?? t.fdv)}</td>
+      <td class="num" data-l="Tuổi">${esc(t.age)}</td>
+      <td class="num" data-l="Nhắc">${t.mentions}<span class="small clamp2" title="${esc(t.groups.join(", "))}">${t.groups.map(esc).join(", ")}</span></td>
       <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
   }).join("");
   return `<p class="note">Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
@@ -423,8 +461,20 @@ document.addEventListener("submit", async ev => {
 function applyTheme(t){
   const root = document.documentElement;
   if (t === "light" || t === "dark") root.setAttribute("data-theme", t); else root.removeAttribute("data-theme");
-  document.querySelectorAll("[data-theme-set]").forEach(b => b.setAttribute("aria-pressed", b.dataset.themeSet === (t || "auto")));
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    if (!m.dataset.media) m.dataset.media = m.media;
+    m.media = t === "auto" ? m.dataset.media : "all";
+    if (t !== "auto") m.content = t === "dark" ? "#171c23" : "#ffffff";
+    else m.content = m.dataset.media.includes("dark") ? "#171c23" : "#ffffff";
+  });
+  // Biểu tượng: đang tối thì hiện mặt trời (bấm để sang sáng), đang sáng thì hiện mặt trăng
+  const dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+  root.classList.toggle("is-dark", dark);
+  const label = dark ? "Chuyển sang nền sáng" : "Chuyển sang nền tối";
+  const btn = document.getElementById("themeBtn");
+  if (btn) { btn.setAttribute("aria-label", label); btn.title = label; }
 }
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme(THEME)); } catch(e) {}
 let THEME = "auto";
 try { THEME = localStorage.getItem("digest-theme") || "auto"; } catch(e) {}
 
@@ -449,7 +499,11 @@ document.addEventListener("click", ev => {
   else if (b.dataset.watch) state.watch = b.dataset.watch;
   else if (b.dataset.tokmore) state.tokLimit += 100;
   else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
-  else if (b.dataset.themeSet) { THEME = b.dataset.themeSet; try { localStorage.setItem("digest-theme", THEME); } catch(e) {} applyTheme(THEME); return; }
+  else if (b.id === "themeBtn") {
+    THEME = document.documentElement.classList.contains("is-dark") ? "light" : "dark";
+    try { localStorage.setItem("digest-theme", THEME); } catch(e) {}
+    applyTheme(THEME); return;
+  }
   else if (b.dataset.del) {
     if (!b.dataset.armed) {  // nút xoá: bấm 2 lần để tránh xoá nhầm
       b.dataset.armed = "1"; b.textContent = "Bấm lần nữa để xoá";

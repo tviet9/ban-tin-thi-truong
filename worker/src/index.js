@@ -71,7 +71,7 @@ async function buildData(env, day) {
 function render(data) {
   const payload = JSON.stringify(data).replace(/</g, "\\u003c");
   const html = TEMPLATE.replace("/*__DATA__*/null", () => payload);
-  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#171c23" media="(prefers-color-scheme: dark)"></head><body>${html}</body></html>`;
+  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><meta name="color-scheme" content="light dark"><meta name="robots" content="noindex"><meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#171c23" media="(prefers-color-scheme: dark)"></head><body>${html}</body></html>`;
 }
 
 async function handleSources(req, env) {
