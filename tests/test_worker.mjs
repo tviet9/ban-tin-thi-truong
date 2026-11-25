@@ -61,4 +61,7 @@ r = await call("/api/refresh", { method: "POST", headers: { "content-type": "app
 assert(r.status === 403, "trang khác không được bấm hộ");
 r = await call("/api/status");
 assert((await r.json()).refresh === true, "status");
+dispatched = 0;
+await worker.scheduled({}, env);
+assert(dispatched === 1, "lịch Cloudflare phải gọi GitHub");
 console.log("test_worker OK", { events: data.digest.events.length, tokens: data.tokens.length, days: data.days });

@@ -100,6 +100,11 @@ def main():
     db = D1()
     if os.environ.get("RESET_TODAY") == "true":
         reset_today(db)
+    last = db.get_state("last_run")
+    if os.environ.get("TRIGGER") == "schedule" and last and \
+            datetime.now(timezone.utc) - datetime.fromisoformat(last) < timedelta(minutes=40):
+        log("[bỏ qua] lịch dự phòng: đã có lượt chạy trong 40 phút qua")
+        return
     src = load_sources(db)
     now = datetime.now(timezone.utc)
     log(f"[nguồn] {len(src['telegram'])} nhóm, {len(src['website'])} trang web, {len(src['sender'])} người theo dõi")

@@ -8,6 +8,9 @@ type = "Text"
 globs = ["**/*.html"]
 fallthrough = true
 
+[triggers]
+crons = ["7 * * * *"]  # mỗi giờ phút 07: gọi lượt cập nhật trên GitHub
+
 [vars]
 GH_REPO = "__GH_REPO__"  # workflow Deploy tự điền (repo chứa workflow cập nhật)
 

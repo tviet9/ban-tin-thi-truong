@@ -1,7 +1,7 @@
 name: Cập nhật mỗi giờ
 on:
   schedule:
-    - cron: "7 * * * *"   # phút 07 mỗi giờ (GitHub có thể trễ vài phút)
+    - cron: "37 * * * *"  # dự phòng: lịch chính do Cloudflare gọi lúc phút 07
   workflow_dispatch:
     inputs:
       reset_today:
@@ -65,6 +65,7 @@ jobs:
       - name: Lấy tin và tóm tắt
         env:
           RESET_TODAY: ${{ inputs.reset_today }}
+          TRIGGER: ${{ github.event_name }}
           HIDE_NAMES: "1"   # repo công khai: log không in tên nhóm
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}

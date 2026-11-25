@@ -82,6 +82,14 @@ function badWrite(req) {
   return null;
 }
 
+// Gọi workflow cập nhật trên GitHub (dùng cho nút "Cập nhật ngay" và lịch chạy mỗi giờ của Cloudflare)
+const dispatch = env => fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/hourly.yml/dispatches`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json",
+             "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "ban-tin-worker", "Content-Type": "application/json" },
+  body: JSON.stringify({ ref: "main" }),
+});
+
 const REFRESH_GAP_MIN = 10; // chống bấm liên tục làm cạn hạn mức AI miễn phí
 
 async function handleRefresh(req, env) {
@@ -93,12 +101,7 @@ async function handleRefresh(req, env) {
   const last = prev ? Date.parse(parse(prev.value, "")) : 0;
   const waitMin = Math.ceil(REFRESH_GAP_MIN - (Date.now() - last) / 60000);
   if (waitMin > 0) return json({ error: `Vừa có người bấm cập nhật. Thử lại sau ${waitMin} phút.` }, 429);
-  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/hourly.yml/dispatches`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json",
-               "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "ban-tin-worker", "Content-Type": "application/json" },
-    body: JSON.stringify({ ref: "main" }),
-  });
+  const r = await dispatch(env);
   if (r.status !== 204) return json({ error: `GitHub từ chối (mã ${r.status}). Kiểm tra lại khoá GH_DISPATCH_TOKEN.` }, 502);
   await db.prepare("INSERT INTO state (key, value) VALUES ('refresh_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .bind(JSON.stringify(new Date().toISOString())).run();
@@ -126,6 +129,12 @@ async function handleSources(req, env) {
 }
 
 export default {
+  // Lịch chạy Cloudflare (phút 07 mỗi giờ): đúng giờ hơn lịch của GitHub
+  async scheduled(event, env) {
+    if (!env.GH_TOKEN || !env.GH_REPO) return;
+    const r = await dispatch(env);
+    if (r.status !== 204) throw new Error(`GitHub từ chối lịch chạy: ${r.status}`);
+  },
   async fetch(req, env) {
     const url = new URL(req.url);
     // Không dùng mật khẩu (theo yêu cầu): ai có link đều xem và sửa nguồn được
