@@ -12,8 +12,8 @@ MAX_PARAMS = 90  # D1 giới hạn 100 tham số mỗi câu lệnh
 
 class D1:
     def __init__(self, account_id=None, token=None, db_name=DB_NAME):
-        self.acc = account_id or os.environ["CLOUDFLARE_ACCOUNT_ID"]
-        self.token = token or os.environ["CLOUDFLARE_API_TOKEN"]
+        self.acc = (account_id or os.environ["CLOUDFLARE_ACCOUNT_ID"]).strip()
+        self.token = (token or os.environ["CLOUDFLARE_API_TOKEN"]).strip()  # secret hay dính dấu xuống dòng
         self.db = self._find_db(db_name)
 
     def _req(self, method, path, body=None):
