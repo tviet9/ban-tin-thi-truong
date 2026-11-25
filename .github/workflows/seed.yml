@@ -32,6 +32,8 @@ jobs:
           PAYLOAD: ${{ inputs.payload }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          JSON=$(printf '%s\n' "$PAYLOAD" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -a -A -pass env:KEY) || { echo "::error::Giải mã thất bại"; exit 1; }
+          export K2=$(printf '%s' "$KEY" | tr -d '[:space:]')
+          echo "Độ dài khoá: ${#KEY} (sau khi bỏ khoảng trắng: ${#K2}); openssl: $(openssl version)"
+          JSON=$(printf '%s' "$PAYLOAD" | tr -d '[:space:]' | fold -w 64 | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -a -pass env:K2) || { echo "::error::Giải mã thất bại"; exit 1; }
           echo "::add-mask::$JSON"
           SEED_JSON="$JSON" python collector/seed_sources.py
