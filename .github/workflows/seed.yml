@@ -26,14 +26,32 @@ jobs:
           test -n "$ACC" && [ "$ACC" != "null" ]
           echo "::add-mask::$ACC"
           echo "CLOUDFLARE_ACCOUNT_ID=$ACC" >> "$GITHUB_ENV"
+      - name: Kiểm tra độ dài secret (chỉ in độ dài)
+        env:
+          A: ${{ secrets.TG_API_ID }}
+          B: ${{ secrets.TG_API_HASH }}
+          C: ${{ secrets.TG_SESSION }}
+          D: ${{ secrets.GROQ_API_KEY }}
+          E: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          len() { printf '%s' "$1" | tr -d '[:space:]' | wc -c; }
+          echo "TG_API_ID=$(len "$A") (cần 7-10 chữ số) | TG_API_HASH=$(len "$B") (cần 32) | TG_SESSION=$(len "$C") (cần ~350) | GROQ_API_KEY=$(len "$D") (cần ~56) | CLOUDFLARE_API_TOKEN=$(len "$E")"
+          case "$(printf '%s' "$A" | tr -d '[:space:]')" in *[!0-9]*) echo "::warning::TG_API_ID có ký tự không phải số";; esac
+          case "$(printf '%s' "$B" | tr -d '[:space:]')" in *[!0-9a-f]*) echo "::warning::TG_API_HASH có ký tự lạ";; esac
       - name: Giải mã và ghi
         env:
-          KEY: ${{ secrets.TG_API_HASH }}
+          K_A: ${{ secrets.TG_API_HASH }}
+          K_B: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          K_C: ${{ secrets.GROQ_API_KEY }}
           PAYLOAD: ${{ inputs.payload }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          export K2=$(printf '%s' "$KEY" | tr -d '[:space:]')
-          echo "Độ dài khoá: ${#KEY} (sau khi bỏ khoảng trắng: ${#K2}); openssl: $(openssl version)"
-          JSON=$(printf '%s' "$PAYLOAD" | tr -d '[:space:]' | fold -w 64 | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -a -pass env:K2) || { echo "::error::Giải mã thất bại"; exit 1; }
+          JSON=""
+          for v in K_A K_B K_C; do
+            export K2=$(printf '%s' "${!v}" | tr -d '[:space:]')
+            JSON=$(printf '%s' "$PAYLOAD" | tr -d '[:space:]' | fold -w 64 | openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -a -pass env:K2 2>/dev/null) && [ -n "$JSON" ] && { echo "Giải mã được bằng khoá $v"; break; }
+            JSON=""
+          done
+          [ -n "$JSON" ] || { echo "::error::Giải mã thất bại với mọi khoá"; exit 1; }
           echo "::add-mask::$JSON"
           SEED_JSON="$JSON" python collector/seed_sources.py
