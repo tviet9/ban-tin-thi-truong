@@ -10,21 +10,25 @@
   --i1:#8a94a3; --i2:#5f8fa8; --i3:#c58a12; --i4:#d9631e; --i5:#c8283b;
   --up:#178a4c; --down:#c8283b; --warn-bg:#fff4dc; --warn-ink:#7a5200;
   --sans:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --glass:rgba(243,245,247,.72); --glass-side:rgba(232,236,240,.6);
-  --ease:cubic-bezier(.2,.8,.2,1);
+  --glass:rgba(243,245,247,.72);
+  --ease:cubic-bezier(.23,1,.32,1); /* ease-out mạnh cho chuyển cảnh */
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0f1318; --surface:#171c23; --ink:#e7ebf0; --muted:#97a1af; --line:#2a313b;
-  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72); --glass-side:rgba(20,25,31,.6);
+  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72);
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f1318; --surface:#171c23; --ink:#e7ebf0; --muted:#97a1af; --line:#2a313b;
-  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72); --glass-side:rgba(20,25,31,.6);
+  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72);
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}
 *{box-sizing:border-box}
+html{scroll-padding-top:88px} /* phần tử được chọn bằng bàn phím không bị thanh lọc dính che */
+button,a,select,input,summary{touch-action:manipulation}
+.skip{position:absolute;left:12px;top:-48px;z-index:20;background:var(--accent);color:var(--surface);padding:8px 12px;border-radius:7px;font-weight:600}
+.skip:focus{top:12px}
 body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);margin:0;-webkit-font-smoothing:antialiased;transition:background-color .25s ease,color .25s ease}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
 .gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
@@ -36,8 +40,6 @@ h1{font-size:1.5rem;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.0
 .stat{display:flex;flex-direction:column}
 .stat b{font:600 1.1rem var(--mono);font-variant-numeric:tabular-nums}
 .stat span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.sample{background:var(--warn-bg);color:var(--warn-ink);font-size:.85rem}
-.sample .in{padding-block:8px;max-width:1480px;margin:0 auto}
 .shell{display:grid;grid-template-columns:232px minmax(0,1fr);max-width:1480px;margin:0 auto;align-items:start}
 nav.side{position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;overflow-y:auto;padding:16px 10px 24px max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:2px}
 .navh{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 10px 4px;font-weight:600}
@@ -65,6 +67,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .overview{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
 .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 6px;font-weight:600}
 .overview p{margin:0;max-width:95ch}
+.event,.card{content-visibility:auto;contain-intrinsic-size:auto 160px} /* danh sách dài: chỉ vẽ phần đang thấy */
 .event{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px}
 .imp{grid-row:span 3;width:40px;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:2px}
 .imp b{font:700 1.25rem/1 var(--mono);color:var(--c)}
@@ -141,17 +144,17 @@ a{color:var(--accent)}
 /* Phản hồi ngay khi nhấn (không đợi thả tay) */
 button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
 @media (prefers-reduced-motion:no-preference){
-  button{transition:transform .1s ease-out,background-color .15s ease,color .15s ease}
+  button{transition:transform .1s var(--ease),background-color .15s ease,color .15s ease}
   button:active{transform:scale(.97)}
   .event,.card{transition:border-color .15s ease}
 }
-@media (hover:hover){.event:hover,.card:hover{border-color:var(--accent)}.nav:not([aria-current="true"]):hover{background:var(--nav)}}
+@media (hover:hover) and (pointer:fine){.event:hover,.card:hover{border-color:var(--accent)}.nav:not([aria-current="true"]):hover{background:var(--nav)}}
 @media (prefers-reduced-transparency:reduce){.bar,nav.side{background:var(--bg)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
 @media (prefers-contrast:more){:root{--line:#9aa3af;--muted:#3d4450}.bar::after{display:none}.bar{border-bottom:1px solid var(--line)}}
 @media (max-width:860px){
   .shell{grid-template-columns:minmax(0,1fr)}
   nav.side{min-width:0}
-  nav.side{position:sticky;max-height:none;flex-direction:row;overflow-x:auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));gap:4px;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);z-index:6;scrollbar-width:none;box-shadow:0 1px 0 var(--line)}
+  nav.side{position:sticky;max-height:none;flex-direction:row;overflow-x:auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));gap:4px;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);z-index:6;scrollbar-width:none;overscroll-behavior-x:contain;box-shadow:0 1px 0 var(--line)}
   .navh{display:none}
   .nav,.nav.sub{width:auto;white-space:nowrap;padding:5px 10px;font-size:.88rem}
   .content{padding-left:max(16px,env(safe-area-inset-left,0px))}
@@ -161,6 +164,7 @@ button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
 }
 </style>
 
+<a class="skip" href="#view">Bỏ qua, đến nội dung</a>
 <header class="top gut"><div class="in">
   <div><h1>Bản tin Thị trường</h1><div class="sub" id="sub"></div></div>
   <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
@@ -169,12 +173,11 @@ button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
     <div class="theme">Giao diện <div class="seg" role="group" aria-label="Giao diện"><button data-theme-set="light" id="th-light">Sáng</button><button data-theme-set="dark" id="th-dark">Tối</button><button data-theme-set="auto" id="th-auto">Theo máy</button></div></div>
   </div>
 </div></header>
-<div class="sample gut" id="sampleBar" hidden><div class="in">Đây là <b>dữ liệu mẫu</b> để xem giao diện. Bản chạy thật sẽ thay bằng tin từ các nhóm của bạn.</div></div>
 <div class="shell">
   <nav class="side" id="side" aria-label="Mục tin"></nav>
   <div class="content">
     <div class="bar" id="bar"></div>
-    <main id="view"></main>
+    <main id="view" tabindex="-1"></main>
   </div>
 </div>
 
@@ -208,7 +211,8 @@ if (navIds.includes(location.hash.slice(1))) state.nav = location.hash.slice(1);
 if (!navIds.includes(state.nav)) state.nav = "all";
 const cur = () => NAV.find(n => n.id === state.nav);
 
-const fmtUsd = v => v == null ? "–" : v >= 1e12 ? "$" + (v/1e12).toFixed(2) + "T" : v >= 1e9 ? "$" + (v/1e9).toFixed(2) + "B" : v >= 1e6 ? "$" + (v/1e6).toFixed(2) + "M" : v >= 1e3 ? "$" + (v/1e3).toFixed(1) + "K" : "$" + Number(v).toFixed(0);
+const USD = new Intl.NumberFormat("en-US", {style:"currency", currency:"USD", notation:"compact", minimumFractionDigits:0, maximumFractionDigits:2});
+const fmtUsd = v => v == null ? "–" : USD.format(v);
 const fmtPrice = v => { if (v == null) return "–"; if (v >= 1) return "$" + v.toLocaleString("en-US",{maximumFractionDigits:4});
   if (v > 0 && v < 1e-4) {
     const zeros = Math.ceil(-Math.log10(v)) - 1;             // số chữ số 0 sau dấu phẩy, ví dụ 0.0000873 có 4
@@ -235,7 +239,6 @@ function header(){
   const s = DATA.stats;
   $("#stats").innerHTML = [[s.total,"tin đọc"],[s.kept,"tin liên quan"],[allEvents().length,"sự kiện"],[DATA.tokens.length,"token"],[(DATA.watch||[]).length,"tin theo dõi"]]
     .map(([n,l]) => `<div class="stat"><b>${Number(n).toLocaleString("vi-VN")}</b><span>${l}</span></div>`).join("");
-  $("#sampleBar").hidden = !DATA.sample;
   if (DATA.days && DATA.api) {
     const days = DATA.days.includes(DATA.day) ? DATA.days : [DATA.day, ...DATA.days];
     $("#daySel").innerHTML = days.map(d => `<option value="${d}" ${d===DATA.day?"selected":""}>${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}</option>`).join("");
@@ -290,10 +293,10 @@ function eventCard(e){
   const srcHtml = srcs.length ? `<details class="src"><summary>${srcs.length} tin gốc</summary>${srcs.map(m =>
      `<div class="srcmsg"><b>${esc(m.group)}</b> · ${esc(m.sender||"")} · ${fmtTime(m.date)} · <a href="${safeUrl(m.link)}" target="_blank" rel="noopener">${/t\.me\//.test(m.link||"") ? "mở trong Telegram" : "mở bài gốc"}</a><br>${esc(m.text)}</div>`).join("")}</details>` : "";
   const cas = (e.contracts||[]).map(a => { const t = DATA.tokens.find(t => t.address === a);
-     return `<span class="ca-pill" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd)+" · thanh khoản "+fmtUsd(t.liquidity_usd) : short(a)}</span>`; }).join("");
+     return `<span class="ca-pill" translate="no" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd)+" · thanh khoản "+fmtUsd(t.liquidity_usd) : short(a)}</span>`; }).join("");
   const tags = (e.tags||[]).map(t => `<span class="tag">${esc(TAGS[t]||t)}</span>`).join("");
   return `<article class="event" style="--c:${c}">
-    <div class="imp" title="${IMP_LABEL[e.importance]}"><b>${e.importance}</b><div class="bars">${bars}</div></div>
+    <div class="imp" role="img" aria-label="Mức ${e.importance}/5: ${IMP_LABEL[e.importance]}" title="${IMP_LABEL[e.importance]}"><b aria-hidden="true">${e.importance}</b><div class="bars" aria-hidden="true">${bars}</div></div>
     <div class="meta"><span class="sec">${esc(SECTIONS[e.topic]||e.topic)}</span>${tags}<span>${IMP_LABEL[e.importance]}</span></div>
     <h3>${esc(e.title)}</h3>
     <ul>${(e.points||[]).map(pointHtml).join("")}</ul>
@@ -340,7 +343,7 @@ function renderTokens(){
       <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
   }).join("");
   return `<p class="note">Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
-  <div class="tbl"><table><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${DATA.tokens.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, DATA.tokens.length - state.tokLimit)} token (còn ${DATA.tokens.length - state.tokLimit})</button>` : ""}`;
+  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${DATA.tokens.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, DATA.tokens.length - state.tokLimit)} token (còn ${DATA.tokens.length - state.tokLimit})</button>` : ""}`;
 }
 
 function renderWatch(){
@@ -351,7 +354,7 @@ function renderWatch(){
   return hint + w.map(m => {
     const tags = m.tags.map(t => `<span class="wtag wtag-${t}">${esc(DATA.watch_labels[t] || t)}</span>`).join("");
     const cas = (m.contracts||[]).map(a => { const t = DATA.tokens.find(t => t.address === a);
-      return `<span class="ca-pill" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd) : short(a)}</span>`; }).join("");
+      return `<span class="ca-pill" translate="no" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd) : short(a)}</span>`; }).join("");
     const links = (m.links||[]).map(u => `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${esc(u)}</a>`).join("<br>");
     return `<article class="card"><div class="meta">${tags}<span><b>${esc(m.sender || m.username || "?")}</b> · ${esc(m.group)} · ${fmtTime(m.date)}</span><a href="${safeUrl(m.link)}" target="_blank" rel="noopener">${/t\.me\//.test(m.link||"") ? "mở trong Telegram" : "mở bài gốc"}</a></div>
       <div class="wtext${m.text.length > 400 ? " clamp6" : ""}" id="wt-${esc(m.uid)}">${esc(m.text)}</div>${m.text.length > 400 ? `<button class="more" data-more="wt-${esc(m.uid)}">Xem thêm</button>` : ""}${links ? `<div class="ctx">${links}</div>` : ""}${cas ? `<div class="chips">${cas}</div>` : ""}</article>`;
@@ -366,9 +369,9 @@ function renderLinks(){
 }
 
 const KINDS = {
-  telegram: {label:"Nhóm Telegram", ph:"https://web.telegram.org/a/#-100... hoặc @tennhom"},
-  website: {label:"Trang web / báo", ph:"https://.../rss hoặc link trang chủ"},
-  sender: {label:"Người theo dõi", ph:"@username"},
+  telegram: {label:"Nhóm Telegram", ph:"https://web.telegram.org/a/#-100… hoặc @tennhom"},
+  website: {label:"Trang web / báo", ph:"https://vnexpress.net/rss/kinh-doanh.rss…"},
+  sender: {label:"Người theo dõi", ph:"@username…"},
 };
 function parseTelegram(v){
   v = v.trim();
@@ -378,21 +381,18 @@ function parseTelegram(v){
 }
 function renderSettings(){
   const s = DATA.sources || {telegram:[], websites:[], watch_senders:[]};
-  const can = !!DATA.api;
-  const del = (kind, v) => can ? `<button class="btn" data-del="${kind}" data-val="${esc(v)}">Xoá</button>` : "";
+  const del = (kind, v) => `<button class="btn" data-del="${kind}" data-val="${esc(v)}">Xoá</button>`;
   const block = (title, rows, empty) => `<section class="set"><h3>${title}</h3>${rows.length ? rows.join("") : `<p class="note">${empty}</p>`}</section>`;
-  const tg = (s.telegram||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||"")}</b><div class="v">${esc(g.id)}</div></div>${del("telegram", g.id)}</div>`);
+  const tg = (s.telegram||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||g.id)}</b><div class="v">${esc(g.id)}</div></div>${del("telegram", g.id)}</div>`);
   const web = (s.websites||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div></div>${del("website", w.url)}</div>`);
   const ppl = (s.watch_senders||[]).map(p => `<div class="srcrow"><div><b>@${esc(String(p).replace(/^@/,""))}</b></div>${del("sender", p)}</div>`);
-  const note = can
-    ? `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 1 giờ). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`
-    : `<p class="note">Bản này xuất từ Colab nên chưa lưu được nguồn tại đây. Khi web chạy online, bạn thêm và xoá nguồn ngay trên trang này. Hiện tại muốn thêm nguồn thì gửi link cho tôi.</p>`;
+  const note = `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 1 giờ). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`;
   return note + `<section class="set"><h3>Thêm nguồn</h3>
     <form class="form" id="addForm">
-      <label>Loại<select id="f-kind" ${can?"":"disabled"}>${Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></label>
-      <label>Link hoặc ID<input id="f-val" placeholder="${KINDS.telegram.ph}" ${can?"":"disabled"} required></label>
-      <label>Tên hiển thị (tuỳ chọn)<input id="f-title" placeholder="VD: Tin vĩ mô" ${can?"":"disabled"}></label>
-      <button class="btn pri" type="submit" ${can?"":"disabled"}>Thêm</button>
+      <label>Loại<select id="f-kind" name="kind">${Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></label>
+      <label>Link hoặc ID<input id="f-val" name="value" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="${KINDS.telegram.ph}" required></label>
+      <label>Tên hiển thị (tuỳ chọn)<input id="f-title" name="title" autocomplete="off" placeholder="VD: Tin vĩ mô…"></label>
+      <button class="btn pri" type="submit">Thêm nguồn</button>
     </form><div class="msg" id="f-msg" role="status"></div></section>`
     + block("Nhóm Telegram", tg, "Chưa có nhóm nào.")
     + block("Trang web / báo", web, "Chưa có trang nào. Thêm link RSS của báo để lấy tin kinh tế, chứng khoán.")
@@ -413,7 +413,7 @@ document.addEventListener("submit", async ev => {
   ev.preventDefault();
   const kind = $("#f-kind").value, raw = $("#f-val").value.trim(), title = $("#f-title").value.trim(), msg = $("#f-msg");
   let value = raw;
-  if (kind === "telegram") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100... hoặc @tennhom."; return; } }
+  if (kind === "telegram") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100… hoặc @tennhom."; return; } }
   if (kind === "website" && !/^https?:\/\//.test(value)) value = "https://" + value;
   if (kind === "sender") value = value.replace(/^@/, "");
   try { const j = await api("POST", {kind, value, title}); DATA.sources = j.sources; render(); const m = $("#f-msg"); m.className = "msg ok"; m.textContent = "Đã thêm. Có hiệu lực từ lần cập nhật kế tiếp."; }
@@ -436,7 +436,7 @@ function render(){
   $("#view").innerHTML = n.id === "tokens" ? renderTokens() : n.id === "watch" ? renderWatch() : n.id === "links" ? renderLinks()
     : n.id === "settings" ? renderSettings() : renderNews(n);
   // Đổi mục: nội dung mới hiện mờ dần (ngắn, không trượt), tắt khi người dùng chọn giảm chuyển động
-  if (fadeIn && !calm() && $("#view").animate) $("#view").animate([{opacity:0},{opacity:1}], {duration:160, easing:"ease-out"});
+  if (fadeIn && !calm() && $("#view").animate) $("#view").animate([{opacity:0},{opacity:1}], {duration:160, easing:"cubic-bezier(.23,1,.32,1)"});
   fadeIn = false;
 }
 
@@ -451,6 +451,11 @@ document.addEventListener("click", ev => {
   else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
   else if (b.dataset.themeSet) { THEME = b.dataset.themeSet; try { localStorage.setItem("digest-theme", THEME); } catch(e) {} applyTheme(THEME); return; }
   else if (b.dataset.del) {
+    if (!b.dataset.armed) {  // nút xoá: bấm 2 lần để tránh xoá nhầm
+      b.dataset.armed = "1"; b.textContent = "Bấm lần nữa để xoá";
+      setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = "Xoá"; } }, 4000);
+      return;
+    }
     api("DELETE", {kind: b.dataset.del, value: b.dataset.val}).then(j => { DATA.sources = j.sources; render(); })
       .catch(e => { const m = $("#f-msg"); if (m) { m.className = "msg err"; m.textContent = "Chưa xoá được: " + e.message; } });
     return;
