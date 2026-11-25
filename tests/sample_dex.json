@@ -1,0 +1,38 @@
+{
+ "0x7a3f9c2e1b8d4a6f0e5c9b2a1d3f4e5a6b7c8d9e": {
+  "address": "0x7a3f9c2e1b8d4a6f0e5c9b2a1d3f4e5a6b7c8d9e",
+  "symbol": "MEOW",
+  "name": "Meow Token (mẫu)",
+  "chain": "bsc",
+  "dex": "pancakeswap",
+  "price_usd": 0.000412,
+  "change_24h": 38.5,
+  "volume_24h": 812000,
+  "liquidity_usd": 214000,
+  "fdv": 412000,
+  "market_cap": 412000,
+  "age_hours": 52,
+  "age": "2 ngày",
+  "created_at": "2026-11-21T22:00:00+00:00",
+  "url": "https://dexscreener.com/",
+  "pairs": 1
+ },
+ "9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT": {
+  "address": "9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT",
+  "symbol": "LOTUS",
+  "name": "Lotus (mẫu)",
+  "chain": "solana",
+  "dex": "raydium",
+  "price_usd": 8.73e-05,
+  "change_24h": 412.0,
+  "volume_24h": 1530000,
+  "liquidity_usd": 96000,
+  "fdv": 873000,
+  "market_cap": 873000,
+  "age_hours": 5,
+  "age": "5 giờ",
+  "created_at": "2026-11-23T21:00:00+00:00",
+  "url": "https://dexscreener.com/",
+  "pairs": 2
+ }
+}

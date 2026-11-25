@@ -1,0 +1,144 @@
+{
+ "overview": "CPI Mỹ tháng 10 thấp hơn dự báo làm tăng kỳ vọng Fed cắt giảm lãi suất trong tháng 12, kéo BTC, vàng và chứng khoán châu Á đi lên. Trong nước, VN-Index tăng phiên sáng nhờ khối ngoại mua ròng nhưng đảo chiều cuối phiên. Thống đốc NHNN họp báo về lãi suất và tỷ giá lúc 15h. Hai token mới được hô trong nhóm crypto, trong đó LOTUS mới 5 giờ tuổi, thanh khoản thấp so với volume.",
+ "events": [
+  {
+   "topic": "kinh_te_qt",
+   "title": "CPI Mỹ thấp hơn dự báo, tăng kỳ vọng Fed giảm lãi suất tháng 12",
+   "points": [
+    "08:30 · CPI tháng 10 tăng 2,6% so với cùng kỳ, dự báo 2,8%",
+    "Thị trường kỳ vọng Fed giảm 25 điểm cơ bản trong tháng 12 (08:45)",
+    "10:40 · Lợi suất trái phiếu Mỹ 10 năm giảm về 4,18%"
+   ],
+   "importance": 5,
+   "reason": "Số liệu CPI lệch dự báo, tác động trực tiếp tới lãi suất Fed",
+   "source_ids": [
+    "3-1003",
+    "3-1018"
+   ],
+   "contracts": [],
+   "tags": [
+    "lai_suat"
+   ]
+  },
+  {
+   "topic": "kinh_te_vn",
+   "title": "Thống đốc NHNN họp báo về lãi suất và tỷ giá lúc 15h",
+   "points": [
+    "Nội dung: điều hành lãi suất và tỷ giá",
+    "Có livestream trên cổng thông tin Chính phủ"
+   ],
+   "importance": 5,
+   "reason": "Họp báo của Thống đốc NHNN về lãi suất",
+   "source_ids": [
+    "3-1011"
+   ],
+   "contracts": [],
+   "tags": [
+    "hop_bao",
+    "lai_suat"
+   ]
+  },
+  {
+   "topic": "kinh_te_qt",
+   "title": "DXY giảm, vàng thế giới lên 2.690 USD/oz sau CPI",
+   "points": [
+    "DXY giảm về 103,2",
+    "Vàng thế giới tăng lên 2.690 USD/oz"
+   ],
+   "importance": 4,
+   "reason": "Biến động tỷ giá và vàng theo số liệu vĩ mô",
+   "source_ids": [
+    "3-1006"
+   ],
+   "contracts": [],
+   "tags": []
+  },
+  {
+   "topic": "kinh_te_vn",
+   "tags": [],
+   "title": "Tỷ giá trung tâm giảm 15 đồng, còn 24.250 VND/USD",
+   "points": [
+    "NHNN niêm yết tỷ giá trung tâm 24.250 VND/USD",
+    "Giảm 15 đồng so với phiên trước, theo đà giảm của DXY"
+   ],
+   "importance": 3,
+   "reason": "Biến động tỷ giá trong nước nhỏ",
+   "source_ids": [
+    "3-1015"
+   ],
+   "contracts": []
+  },
+  {
+   "topic": "chung_khoan",
+   "title": "VN-Index tăng phiên sáng rồi đảo chiều, đóng cửa 1.255 điểm",
+   "points": [
+    "Phiên sáng tăng 9 điểm lên 1.262, khối ngoại mua ròng 320 tỷ (FPT, MWG)",
+    "Thanh khoản HOSE phiên sáng 8.900 tỷ, cao nhất 2 tuần",
+    "Phiên chiều chốt lời ở nhóm chứng khoán, kết phiên 1.255 điểm"
+   ],
+   "importance": 4,
+   "reason": "Khối ngoại mua ròng mạnh, thanh khoản tăng",
+   "source_ids": [
+    "2-1007",
+    "2-1008",
+    "2-1019"
+   ],
+   "contracts": [],
+   "tags": []
+  },
+  {
+   "topic": "crypto",
+   "title": "Binance niêm yết token XYZ trên Spot lúc 17h",
+   "points": [
+    "Thông báo chính thức từ Binance",
+    "Nhiều thành viên dự đoán giá tăng sau niêm yết"
+   ],
+   "importance": 4,
+   "reason": "Sàn lớn niêm yết token",
+   "source_ids": [
+    "1-1013",
+    "1-1014"
+   ],
+   "contracts": [],
+   "tags": []
+  },
+  {
+   "topic": "crypto",
+   "title": "BTC vượt 98.000 USD sau tin CPI",
+   "points": [
+    "Giá tăng ngay sau số liệu CPI",
+    "Thành viên bàn về khả năng short squeeze"
+   ],
+   "importance": 3,
+   "reason": "Biến động giá theo vĩ mô, chưa vượt 3%",
+   "source_ids": [
+    "1-1004"
+   ],
+   "contracts": [],
+   "tags": []
+  },
+  {
+   "topic": "crypto",
+   "title": "Hai token mới được hô: MEOW (BSC) và LOTUS (Solana)",
+   "points": [
+    "MEOW 2 ngày tuổi, thanh khoản 214K USD, được nhắc ở 2 tin, có cảnh báo dev xả",
+    "LOTUS 5 giờ tuổi, volume 1,53M nhưng thanh khoản chỉ 96K USD",
+    "Một CA khác được hô nhưng chưa có giao dịch trên DexScreener"
+   ],
+   "importance": 2,
+   "reason": "Kêu gọi mua từ cá nhân, token rất mới, rủi ro cao",
+   "source_ids": [
+    "1-1000",
+    "1-1002",
+    "1-1009",
+    "1-1010",
+    "1-1017"
+   ],
+   "contracts": [
+    "0x7a3f9c2e1b8d4a6f0e5c9b2a1d3f4e5a6b7c8d9e",
+    "9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT"
+   ],
+   "tags": []
+  }
+ ]
+}

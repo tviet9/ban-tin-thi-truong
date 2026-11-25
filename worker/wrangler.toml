@@ -1,0 +1,14 @@
+name = "ban-tin"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ban-tin"
+database_id = "__D1_ID__"  # workflow Deploy tự điền

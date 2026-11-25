@@ -1,0 +1,98 @@
+"""Chạy thử run_hourly với database SQLite giả lập D1, Telegram/DexScreener/AI giả. Không cần mạng.
+python3 tests/test_hourly.py <đường dẫn file sqlite>
+"""
+import json
+import sqlite3
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "collector"))
+
+import d1  # noqa: E402
+import run_hourly  # noqa: E402
+
+DB_PATH = sys.argv[1] if len(sys.argv) > 1 else "/tmp/test_bantin.sqlite"
+
+
+class SqliteD1(d1.D1):
+    def __init__(self):
+        self.con = sqlite3.connect(DB_PATH)
+        self.con.row_factory = sqlite3.Row
+
+    def query(self, sql, params=None):
+        cur = self.con.execute(sql, list(params or []))
+        rows = [dict(r) for r in cur.fetchall()]
+        self.con.commit()
+        return rows
+
+
+def setup():
+    Path(DB_PATH).unlink(missing_ok=True)
+    con = sqlite3.connect(DB_PATH)
+    con.executescript((ROOT / "worker" / "schema.sql").read_text())
+    now = datetime.now(timezone.utc).isoformat()
+    con.executemany("INSERT INTO sources VALUES (?,?,?,?)", [
+        ("telegram", "-1001", None, now), ("telegram", "-1002", "Tin vĩ mô", now), ("sender", "admin_vimo", None, now)])
+    con.commit()
+
+
+def fake_messages():
+    raw = json.loads((ROOT / "tests" / "sample_messages.json").read_text(encoding="utf-8"))["messages"]
+    base = datetime.now(timezone.utc) - timedelta(minutes=50)
+    out = []
+    for i, m in enumerate(raw):
+        m = dict(m)
+        m["group_id"] = -1001 if m["group_id"] != 2 else -1002
+        m["date"] = (base + timedelta(minutes=i * 2)).isoformat()
+        out.append(m)
+    return out
+
+
+def main():
+    setup()
+    run_hourly.D1 = SqliteD1
+    sample_dex = json.loads((ROOT / "tests" / "sample_dex.json").read_text(encoding="utf-8"))
+    for v in sample_dex.values():
+        v["price_at"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
+    run_hourly.dexscreener.lookup = lambda addrs: {a: dict(sample_dex[a]) for a in addrs if a in sample_dex}
+
+    async def fake_tg(groups, min_ids):
+        msgs = fake_messages()
+        for gid in ("-1001", "-1002"):
+            min_ids[gid] = 2000
+        return msgs, {"-1001": {"real_title": "Nhóm Crypto (thật)"}, "-1002": {"real_title": "x"}}
+    run_hourly.fetch_telegram = fake_tg
+    digest = json.loads((ROOT / "tests" / "sample_digest.json").read_text(encoding="utf-8"))
+
+    def fake_call(keys, system, text):
+        ids = [ln[1:ln.index("]")] for ln in text.splitlines() if ln.startswith("[")]
+        if "Events:" in text:
+            return json.loads(json.dumps(digest))
+        return {"overview": f"{len(ids)} tin.", "events": [
+            {"topic": "crypto", "tags": [], "title": "Sự kiện giờ", "points": ["10:00 · ý"], "importance": 3,
+             "source_ids": ids[:2]}]}
+    run_hourly.sm.call = fake_call
+    run_hourly.main()
+    # chạy lần 2: không có tin mới, token đã có giá lần đầu
+    run_hourly.fetch_telegram = lambda g, m: _empty()
+    run_hourly.main()
+    con = sqlite3.connect(DB_PATH)
+    counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+              for t in ("hours", "digests", "messages", "watch", "links", "tokens", "token_days", "stats")}
+    print("rows:", counts)
+    title = con.execute("SELECT title FROM sources WHERE value='-1001'").fetchone()[0]
+    assert title == "Nhóm Crypto (thật)", title
+    assert counts["digests"] == 1 and counts["tokens"] == 2 and counts["watch"] >= 1 and counts["messages"] > 10
+    td = [json.loads(r[0]) for r in con.execute("SELECT data FROM token_days")]
+    assert all(t["change_since_first"] is not None for t in td), "lần 2 phải có % so với lần đầu"
+    print("test_hourly OK")
+
+
+async def _empty():
+    return [], {}
+
+
+if __name__ == "__main__":
+    main()

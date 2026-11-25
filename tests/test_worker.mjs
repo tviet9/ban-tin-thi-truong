@@ -1,0 +1,62 @@
+// Thử Worker với D1 giả lập bằng node:sqlite. Chạy sau tests/test_hourly.py:
+// node tests/test_worker.mjs <file sqlite> <file html xuất ra>
+import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const [dbFile, outHtml] = process.argv.slice(2);
+const tmp = path.join(path.dirname(outHtml), "worker_test_index.mjs");
+const src = fs.readFileSync(path.join(root, "worker/src/index.js"), "utf8")
+  .replace('import TEMPLATE from "./template.html";', `const TEMPLATE = ${JSON.stringify(fs.readFileSync(path.join(root, "web/template.html"), "utf8"))};`);
+fs.writeFileSync(tmp, src);
+const worker = (await import(pathToFileURL(tmp).href)).default;
+
+const sql = new DatabaseSync(dbFile);
+const stmt = (q) => {
+  let args = [];
+  const s = {
+    bind: (...a) => { args = a; return s; },
+    all: async () => ({ results: sql.prepare(q).all(...args) }),
+    first: async () => sql.prepare(q).get(...args) ?? null,
+    run: async () => { sql.prepare(q).run(...args); return { success: true }; },
+  };
+  return s;
+};
+const env = { DB: { prepare: stmt }, SITE_PASSWORD: "matkhau-thu" };
+const call = (p, init = {}) => worker.fetch(new Request("https://x.workers.dev" + p, init), env);
+const assert = (c, m) => { if (!c) { console.error("FAIL", m); process.exit(1); } };
+
+let r = await call("/");
+assert(r.status === 200 && (await r.text()).includes('type="password"'), "chưa đăng nhập phải thấy trang mật khẩu");
+r = await call("/api/sources");
+assert(r.status === 401, "API phải chặn khi chưa đăng nhập");
+const bad = new FormData(); bad.set("password", "sai");
+r = await call("/login", { method: "POST", body: bad });
+assert(r.status === 401, "sai mật khẩu");
+const good = new FormData(); good.set("password", "matkhau-thu");
+r = await call("/login", { method: "POST", body: good });
+assert(r.status === 303, "đúng mật khẩu phải chuyển trang");
+const cookie = r.headers.get("set-cookie").split(";")[0];
+const H = { cookie };
+
+r = await call("/", { headers: H });
+const html = await r.text();
+assert(r.status === 200 && html.includes("const DATA = {"), "trang chính có dữ liệu");
+const data = JSON.parse(html.match(/const DATA = (\{.*?\});\n/s)[1]);
+assert(data.api && data.digest.events.length > 0 && data.tokens.length === 2 && data.watch.length > 0, "dữ liệu đủ");
+assert(Object.keys(data.messages).length > 0, "có tin gốc");
+fs.writeFileSync(outHtml, html);
+
+r = await call("/api/sources", { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ kind: "website", value: "https://vnexpress.net/rss/kinh-doanh.rss", title: "VnExpress" }) });
+let j = await r.json();
+assert(r.status === 200 && j.sources.websites.length === 1, "thêm trang web");
+r = await call("/api/sources", { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ kind: "telegram", value: "abc" }) });
+assert(r.status === 400, "ID nhóm sai phải báo lỗi");
+r = await call("/api/sources", { method: "DELETE", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ kind: "website", value: "https://vnexpress.net/rss/kinh-doanh.rss" }) });
+j = await r.json();
+assert(j.sources.websites.length === 0, "xoá trang web");
+r = await call("/?day=2020-01-01", { headers: H });
+assert((await r.text()).includes("Chưa có dữ liệu cho ngày này"), "ngày trống");
+console.log("test_worker OK", { events: data.digest.events.length, tokens: data.tokens.length, days: data.days });

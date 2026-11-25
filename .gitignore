@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+sources_local.json
+tests/out_sample.html
+worker/src/template.html
+worker/.wrangler/
+node_modules/
+demo_colab.ipynb

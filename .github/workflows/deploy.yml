@@ -1,0 +1,50 @@
+name: Deploy web
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", "web/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cài wrangler
+        run: npm install -g wrangler@4
+      - name: Tạo database D1 nếu chưa có
+        working-directory: worker
+        run: |
+          ID=$(wrangler d1 list --json | jq -r '.[] | select(.name=="ban-tin") | .uuid')
+          if [ -z "$ID" ]; then
+            wrangler d1 create ban-tin
+            ID=$(wrangler d1 list --json | jq -r '.[] | select(.name=="ban-tin") | .uuid')
+          fi
+          test -n "$ID"
+          sed -i "s/__D1_ID__/$ID/" wrangler.toml
+      - name: Tạo bảng
+        working-directory: worker
+        run: wrangler d1 execute ban-tin --remote --file schema.sql --yes
+      - name: Đưa web lên
+        working-directory: worker
+        run: |
+          cp ../web/template.html src/template.html
+          wrangler deploy
+      - name: Cài mật khẩu web
+        working-directory: worker
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: |
+          if [ -z "$SITE_PASSWORD" ]; then echo "Chưa có secret SITE_PASSWORD"; exit 1; fi
+          printf '%s' "$SITE_PASSWORD" | wrangler secret put SITE_PASSWORD
