@@ -77,6 +77,10 @@ function render(data) {
 async function handleSources(req, env) {
   const db = env.DB;
   if (req.method === "GET") return json({ sources: await sources(db) });
+  // Không có mật khẩu, nhưng chỉ nhận yêu cầu ghi từ chính trang này (JSON, cùng nguồn) để trang web khác không sửa được
+  const origin = req.headers.get("origin");
+  if (origin && origin !== new URL(req.url).origin) return json({ error: "Không cho phép" }, 403);
+  if (!(req.headers.get("content-type") || "").includes("application/json")) return json({ error: "Cần JSON" }, 415);
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind || ""), value = String(body.value || "").trim(), title = String(body.title || "").trim().slice(0, 100);
   if (!["telegram", "website", "sender"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);

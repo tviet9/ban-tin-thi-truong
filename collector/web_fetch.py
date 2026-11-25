@@ -77,6 +77,8 @@ def parse_feed(body):
                 it["link"] = ch.get("href") or (ch.text or "").strip()
             elif n in ("pubdate", "published", "updated", "date") and not it["date"]:
                 it["date"] = _date(ch.text)
+        if not re.match(r"^https?://", it["link"] or "", re.I):
+            it["link"] = ""  # bỏ link lạ (javascript:, data:...)
         if it["title"]:
             items.append(it)
     return title, items
@@ -106,7 +108,8 @@ def fetch(websites, since, site_offset=100):
         for it in items:
             if it["date"] and it["date"] < since:
                 continue
-            uid = f"{site_offset + i}-" + hashlib.md5(it["link"].encode()).hexdigest()[:8]
+            key = w["url"] + "|" + (it["link"] or it["title"])
+            uid = "w-" + hashlib.md5(key.encode()).hexdigest()[:12]  # cố định, không phụ thuộc thứ tự nguồn
             messages.append({
                 "uid": uid, "id": uid, "group_id": f"web:{w['url']}", "group": name,
                 "date": (it["date"] or datetime.now(timezone.utc)).isoformat(),

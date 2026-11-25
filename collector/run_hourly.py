@@ -41,7 +41,7 @@ def start_of_today():
 
 
 def load_sources(db):
-    rows = db.query("SELECT kind, value, title FROM sources")
+    rows = db.query("SELECT kind, value, title FROM sources ORDER BY kind, value")
     out = {"telegram": [], "website": [], "sender": []}
     for r in rows:
         out.setdefault(r["kind"], []).append(r)
@@ -95,7 +95,7 @@ def reset_today(db):
     d = datetime.now(VN).strftime("%Y-%m-%d")
     for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats"):
         db.query(f"DELETE FROM {t} WHERE day = ?", [d])
-    db.query("DELETE FROM tokens")
+    db.query("DELETE FROM tokens WHERE first_at >= ?", [start_of_today().isoformat(timespec="minutes")])
     db.query("DELETE FROM state WHERE key IN ('min_ids', 'last_run', 'last_web_run')")
     log(f"[reset] đã xoá dữ liệu ngày {d}")
 
@@ -111,7 +111,7 @@ def main():
 
     # người theo dõi lấy từ database
     import filters
-    filters._WATCH_SENDERS = {str(r["value"]).lstrip("@").lower() for r in src["sender"]}
+    filters._WATCH_SENDERS = set(filters._WATCH_SENDERS) | {str(r["value"]).lstrip("@").lower() for r in src["sender"]}
 
     # 1. Telegram
     min_ids = db.get_state("min_ids", {})
@@ -147,17 +147,18 @@ def main():
         stored |= {r["uid"] for r in db.query(f"SELECT uid FROM messages WHERE uid IN ({','.join('?' * len(part))})", part)}
     if stored:
         log(f"[đọc] bỏ {len(stored)} tin đã xử lý ở lượt trước")
-    kept, stats = filter_messages([m for m in msgs if m["uid"] not in stored])
+    msgs = [m for m in msgs if m["uid"] not in stored]  # dùng chung cho lọc và thống kê
+    kept, stats = filter_messages(msgs)
     log(f"[lọc] {stats}")
     days = sorted({vn_day(m["date"]) for m in kept} | {datetime.now(VN).strftime("%Y-%m-%d")})
     today = datetime.now(VN).strftime("%Y-%m-%d")
 
     # 3. Token: CA mới + CA đã nhắc hôm nay (cập nhật giá)
-    mentions = defaultdict(lambda: {"count": 0, "groups": set(), "first": None, "links": []})
+    mentions = defaultdict(lambda: {"uids": set(), "groups": set(), "first": None, "links": []})
     for m in kept:
         for ca in m["contracts"]:
             x = mentions[ca]
-            x["count"] += 1
+            x["uids"].add(m["uid"])
             x["groups"].add(m["group"])
             x["first"] = min(filter(None, [x["first"], m["date"]]))
             if len(x["links"]) < 5:
@@ -179,11 +180,13 @@ def main():
         key = ca.lower() if ca.startswith("0x") else ca
         prev = old_today.get(ca, {})
         mm = mentions.get(ca)
+        uids = sorted(set(prev.get("uids", [])) | (mm["uids"] if mm else set()))
         t = {**info_,
-             "mentions": prev.get("mentions", 0) + (mm["count"] if mm else 0),
+             "uids": uids,
+             "mentions": len(uids) if uids else prev.get("mentions", 0),
              "groups": sorted(set(prev.get("groups", [])) | (mm["groups"] if mm else set())),
              "first_seen": prev.get("first_seen") or (mm["first"] if mm else None),
-             "msg_links": (prev.get("msg_links", []) + (mm["links"] if mm else []))[:5]}
+             "msg_links": list(dict.fromkeys(prev.get("msg_links", []) + (mm["links"] if mm else [])))[:5]}
         k = known.get(key)
         if k and k.get("first_price") and t.get("price_usd"):
             t["base_price"], t["base_at"] = k["first_price"], k["first_at"]
@@ -217,21 +220,26 @@ def main():
     for m in kept:
         if m["topics"]:
             by_hour[vn_hour(m["date"])].append(m)
+    changed_days = set()
     for h, ms in sorted(by_hour.items()):
+        old = db.query("SELECT data FROM hours WHERE hour = ?", [h])
+        o = json.loads(old[0]["data"]) if old else {}
+        done = set(o.get("uids", []))
+        ms = [m for m in ms if m["uid"] not in done]  # lượt trước lỗi giữa chừng: không tóm tắt lại
+        if not ms:
+            continue
         log(f"[AI] tóm tắt {h} ({len(ms)} tin)")
         res = sm.summarize(keys, ms, f"{h} (giờ Việt Nam), 60 phút")
-        old = db.query("SELECT data FROM hours WHERE hour = ?", [h])
-        if old:
-            o = json.loads(old[0]["data"])
-            res = {"overview": (o.get("overview", "") + " " + res["overview"]).strip()[:1200],
-                   "events": o.get("events", []) + res["events"], "count": o.get("count", 0) + len(ms)}
-        else:
-            res["count"] = len(ms)
+        res = {"overview": (o.get("overview", "") + " " + res["overview"]).strip()[:1200],
+               "events": o.get("events", []) + res["events"],
+               "uids": sorted(done | {m["uid"] for m in ms})}
+        res["count"] = len(res["uids"])
+        changed_days.add(h[:10])
         db.upsert("hours", ["hour", "day", "data"], [[h, h[:10], json.dumps({"hour": h, "span": 1, **res},
                                                                              ensure_ascii=False)]], conflict=["hour"])
 
     # 6. Tổng hợp ngày (chỉ khi có tin mới)
-    for d in {h[:10] for h in by_hour}:
+    for d in sorted(changed_days):
         hours = [json.loads(r["data"]) for r in db.query("SELECT data FROM hours WHERE day = ?", [d])]
         events = [e for h in hours for e in h.get("events", [])]
         log(f"[AI] tổng hợp ngày {d} ({len(events)} sự kiện)")
