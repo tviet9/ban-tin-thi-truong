@@ -53,8 +53,23 @@ def tg_key(v):
     return int(v) if v.lstrip("-").isdigit() else v
 
 
-async def fetch_telegram(groups, min_ids):
-    client = telegram_fetch.make_client(os.environ["TG_SESSION"], os.environ["TG_API_ID"], os.environ["TG_API_HASH"])
+def tg_creds(db):
+    """Ưu tiên secret trên GitHub nếu hợp lệ; nếu không, dùng bản lưu trong database."""
+    api_id = os.environ.get("TG_API_ID", "").strip()
+    api_hash = os.environ.get("TG_API_HASH", "").strip()
+    session = os.environ.get("TG_SESSION", "").strip()
+    if api_id.isdigit() and len(api_hash) == 32 and len(session) > 100:
+        return api_id, api_hash, session
+    saved = db.get_state("tg_creds")
+    if not saved:
+        raise SystemExit("Secret TG_API_ID / TG_API_HASH / TG_SESSION chưa đúng và database không có bản dự phòng.")
+    log("[telegram] dùng thông tin đăng nhập lưu trong database")
+    return saved["api_id"], saved["api_hash"], saved["session"]
+
+
+async def fetch_telegram(groups, min_ids, creds):
+    api_id, api_hash, session = creds
+    client = telegram_fetch.make_client(session, api_id, api_hash)
     await client.connect()
     if not await client.is_user_authorized():
         raise SystemExit("TG_SESSION hết hạn hoặc sai. Tạo session string mới bằng notebook Colab rồi cập nhật secret.")
@@ -90,7 +105,7 @@ def main():
     min_ids = db.get_state("min_ids", {})
     msgs, info = ([], {})
     if src["telegram"]:
-        msgs, info = asyncio.run(fetch_telegram(src["telegram"], min_ids))
+        msgs, info = asyncio.run(fetch_telegram(src["telegram"], min_ids, tg_creds(db)))
     # cập nhật tên nhóm thật nếu người dùng chưa đặt tên
     for r in src["telegram"]:
         i = info.get(str(r["value"]))

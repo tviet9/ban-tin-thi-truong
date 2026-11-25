@@ -58,7 +58,9 @@ def main():
         v["price_at"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
     run_hourly.dexscreener.lookup = lambda addrs: {a: dict(sample_dex[a]) for a in addrs if a in sample_dex}
 
-    async def fake_tg(groups, min_ids):
+    run_hourly.tg_creds = lambda db: ("1", "a" * 32, "s" * 200)
+
+    async def fake_tg(groups, min_ids, creds):
         msgs = fake_messages()
         for gid in ("-1001", "-1002"):
             min_ids[gid] = 2000
@@ -76,7 +78,7 @@ def main():
     run_hourly.sm.call = fake_call
     run_hourly.main()
     # chạy lần 2: không có tin mới, token đã có giá lần đầu
-    run_hourly.fetch_telegram = lambda g, m: _empty()
+    run_hourly.fetch_telegram = lambda g, m, c: _empty()
     run_hourly.main()
     con = sqlite3.connect(DB_PATH)
     counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
