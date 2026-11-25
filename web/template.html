@@ -1,7 +1,7 @@
 <title>Bản tin Thị trường</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: menu mục cố định bên trái, vùng nội dung bên phải có thanh lọc dính trên cùng; dưới 860px menu chuyển thành dải ngang */
 :root{
@@ -9,26 +9,28 @@
   --accent:#0a6c86; --accent-soft:#e2f0f4; --nav:#eef1f4;
   --i1:#8a94a3; --i2:#5f8fa8; --i3:#c58a12; --i4:#d9631e; --i5:#c8283b;
   --up:#178a4c; --down:#c8283b; --warn-bg:#fff4dc; --warn-ink:#7a5200;
-  --sans:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --sans:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --glass:rgba(243,245,247,.72); --glass-side:rgba(232,236,240,.6);
+  --ease:cubic-bezier(.2,.8,.2,1);
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0f1318; --surface:#171c23; --ink:#e7ebf0; --muted:#97a1af; --line:#2a313b;
-  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e;
+  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72); --glass-side:rgba(20,25,31,.6);
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f1318; --surface:#171c23; --ink:#e7ebf0; --muted:#97a1af; --line:#2a313b;
-  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e;
+  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72); --glass-side:rgba(20,25,31,.6);
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);margin:0;-webkit-font-smoothing:antialiased;transition:background-color .25s ease,color .25s ease}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
 .gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header.top{background:var(--surface);border-bottom:1px solid var(--line)}
 header.top .in{padding-block:16px 12px;display:flex;flex-wrap:wrap;gap:10px 28px;align-items:end;justify-content:space-between;max-width:1480px;margin:0 auto}
-h1{font-size:1.4rem;line-height:1.2;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+h1{font-size:1.5rem;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.022em;text-wrap:balance}
 .sub{color:var(--muted);font-size:.83rem;margin-top:4px}
 .stats{display:flex;gap:18px;flex-wrap:wrap}
 .stat{display:flex;flex-direction:column}
@@ -43,11 +45,14 @@ button{font:inherit;color:inherit;cursor:pointer}
 .nav{display:flex;justify-content:space-between;align-items:center;gap:8px;border:0;background:none;text-align:left;padding:7px 10px;border-radius:7px;font-weight:500;color:var(--ink);width:100%}
 .nav.sub{padding-left:24px;font-weight:400;font-size:.92rem}
 .nav .c{font:500 .75rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
-.nav:hover{background:var(--nav)}
+
 .nav[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .nav[aria-current="true"] .c{color:var(--accent)}
 .content{min-width:0;padding-right:max(16px,env(safe-area-inset-right,0px));padding-left:12px}
-.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px 10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;border-bottom:1px solid var(--line)}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);padding-block:12px 10px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+/* mép cuộn mềm thay cho đường kẻ cứng: chỉ hiện khi nội dung trượt dưới thanh lọc */
+.bar::after{content:"";position:absolute;left:0;right:0;top:100%;height:12px;pointer-events:none;background:linear-gradient(var(--glass),transparent)}
+.bar h2{letter-spacing:-.015em}
 .bar h2{font-size:1.15rem;margin:0 8px 0 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{border:0;background:none;padding:4px 12px;font-size:.85rem;color:var(--muted)}
@@ -69,7 +74,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .meta{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:.78rem;color:var(--muted);min-width:0}
 .sec{color:var(--accent);font-weight:600}
 .tag{font-size:.7rem;font-weight:600;border:1px solid currentColor;border-radius:999px;padding:0 7px;color:var(--i4)}
-.event h3{margin:0;font-size:1.02rem;line-height:1.35;text-wrap:balance}
+.event h3{margin:0;font-size:1.04rem;line-height:1.3;font-weight:650;letter-spacing:-.008em;text-wrap:balance}
 .event ul{margin:2px 0 0;padding-left:18px}
 .event li{margin:2px 0}
 .why{grid-column:2;font-size:.8rem;color:var(--muted);margin-top:4px}
@@ -123,10 +128,19 @@ a{color:var(--accent)}
 @media (max-width:860px){.form{grid-template-columns:1fr}}
 .msg{font-size:.85rem}
 .msg.err{color:var(--down)} .msg.ok{color:var(--up)}
-@media (prefers-reduced-motion:no-preference){.event,.card{transition:border-color .15s}.event:hover,.card:hover{border-color:var(--accent)}}
+/* Phản hồi ngay khi nhấn (không đợi thả tay) */
+button,.nav,.chip,.btn,.copy,a.u{-webkit-tap-highlight-color:transparent}
+@media (prefers-reduced-motion:no-preference){
+  button{transition:transform .1s ease-out,background-color .15s ease,color .15s ease}
+  button:active{transform:scale(.97)}
+  .event,.card{transition:border-color .15s ease}
+}
+@media (hover:hover){.event:hover,.card:hover{border-color:var(--accent)}.nav:hover{background:var(--nav)}}
+@media (prefers-reduced-transparency:reduce){.bar,nav.side{background:var(--bg)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
+@media (prefers-contrast:more){:root{--line:#9aa3af;--muted:#3d4450}.bar::after{display:none}.bar{border-bottom:1px solid var(--line)}}
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
-  nav.side{position:sticky;max-height:none;flex-direction:row;overflow-x:auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));gap:4px;background:var(--surface);border-bottom:1px solid var(--line);z-index:6;scrollbar-width:none}
+  nav.side{position:sticky;max-height:none;flex-direction:row;overflow-x:auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));gap:4px;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);z-index:6;scrollbar-width:none;box-shadow:0 1px 0 var(--line)}
   .navh{display:none}
   .nav,.nav.sub{width:auto;white-space:nowrap;padding:5px 10px;font-size:.88rem}
   .content{padding-left:max(16px,env(safe-area-inset-left,0px))}
@@ -139,7 +153,7 @@ a{color:var(--accent)}
   <div><h1>Bản tin Thị trường</h1><div class="sub" id="sub"></div></div>
   <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
     <div class="stats" id="stats"></div>
-    <div class="theme" id="dayBox" hidden><label for="daySel">Ngày</label><select id="daySel" class="daysel"></select><a href="/logout">Đăng xuất</a></div>
+    <div class="theme" id="dayBox" hidden><label for="daySel">Ngày</label><select id="daySel" class="daysel"></select></div>
     <div class="theme">Giao diện <div class="seg" role="group" aria-label="Giao diện"><button data-theme-set="light" id="th-light">Sáng</button><button data-theme-set="dark" id="th-dark">Tối</button><button data-theme-set="auto" id="th-auto">Theo máy</button></div></div>
   </div>
 </div></header>
@@ -387,16 +401,21 @@ function applyTheme(t){
 let THEME = "auto";
 try { THEME = localStorage.getItem("digest-theme") || "auto"; } catch(e) {}
 
+let fadeIn = false;
+const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(e) { return true; } };
 function render(){
   side(); bar();
   const n = cur();
   $("#view").innerHTML = n.id === "tokens" ? renderTokens() : n.id === "watch" ? renderWatch() : n.id === "links" ? renderLinks()
     : n.id === "settings" ? renderSettings() : renderNews(n);
+  // Đổi mục: nội dung mới hiện mờ dần (ngắn, không trượt), tắt khi người dùng chọn giảm chuyển động
+  if (fadeIn && !calm() && $("#view").animate) $("#view").animate([{opacity:0},{opacity:1}], {duration:160, easing:"ease-out"});
+  fadeIn = false;
 }
 
 document.addEventListener("click", ev => {
   const b = ev.target.closest("button"); if (!b) return;
-  if (b.dataset.nav) { state.nav = b.dataset.nav; history.replaceState(null, "", "#" + state.nav); window.scrollTo({top:0}); }
+  if (b.dataset.nav) { state.nav = b.dataset.nav; history.replaceState(null, "", "#" + state.nav); window.scrollTo({top:0}); fadeIn = true; }
   else if (b.dataset.mode) state.mode = b.dataset.mode;
   else if (b.dataset.imp) state.minImp = Number(b.dataset.imp);
   else if (b.dataset.tag) state.tag = b.dataset.tag;

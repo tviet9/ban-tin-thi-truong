@@ -21,12 +21,10 @@ jobs:
         env:
           S1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           S2: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          S3: ${{ secrets.SITE_PASSWORD }}
         run: |
           miss=""
           [ -z "$S1" ] && miss="$miss CLOUDFLARE_API_TOKEN"
           [ -z "$S2" ] && miss="$miss CLOUDFLARE_ACCOUNT_ID"
-          [ -z "$S3" ] && miss="$miss SITE_PASSWORD"
           if [ -n "$miss" ]; then echo "::error::Thiếu secret:$miss (Settings > Secrets and variables > Actions > Repository secrets)"; exit 1; fi
           echo "Đủ secret"
       - uses: actions/setup-node@v4
@@ -70,10 +68,6 @@ jobs:
         run: |
           cp ../web/template.html src/template.html
           wrangler deploy
-      - name: Cài mật khẩu web
+      - name: Gỡ mật khẩu cũ (nếu có)
         working-directory: worker
-        env:
-          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
-        run: |
-          if [ -z "$SITE_PASSWORD" ]; then echo "Chưa có secret SITE_PASSWORD"; exit 1; fi
-          printf '%s' "$SITE_PASSWORD" | wrangler secret put SITE_PASSWORD
+        run: wrangler secret delete SITE_PASSWORD --force || true

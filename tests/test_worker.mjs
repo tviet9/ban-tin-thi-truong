@@ -28,19 +28,8 @@ const env = { DB: { prepare: stmt }, SITE_PASSWORD: "matkhau-thu" };
 const call = (p, init = {}) => worker.fetch(new Request("https://x.workers.dev" + p, init), env);
 const assert = (c, m) => { if (!c) { console.error("FAIL", m); process.exit(1); } };
 
-let r = await call("/");
-assert(r.status === 200 && (await r.text()).includes('type="password"'), "chưa đăng nhập phải thấy trang mật khẩu");
-r = await call("/api/sources");
-assert(r.status === 401, "API phải chặn khi chưa đăng nhập");
-const bad = new FormData(); bad.set("password", "sai");
-r = await call("/login", { method: "POST", body: bad });
-assert(r.status === 401, "sai mật khẩu");
-const good = new FormData(); good.set("password", "matkhau-thu");
-r = await call("/login", { method: "POST", body: good });
-assert(r.status === 303, "đúng mật khẩu phải chuyển trang");
-const cookie = r.headers.get("set-cookie").split(";")[0];
-const H = { cookie };
-
+let r;
+const H = {};
 r = await call("/", { headers: H });
 const html = await r.text();
 assert(r.status === 200 && html.includes("const DATA = {"), "trang chính có dữ liệu");

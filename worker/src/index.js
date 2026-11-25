@@ -5,41 +5,10 @@ const SECTIONS = { kinh_te_vn: "Kinh tế trong nước", kinh_te_qt: "Kinh tế
 const TAGS = { lai_suat: "Lãi suất", hop_bao: "Họp báo" };
 const TOPICS = { crypto: "Crypto", chung_khoan: "Chứng khoán", kinh_te: "Kinh tế", lai_suat: "Lãi suất", hop_bao: "Họp báo" };
 const WATCH_LABELS = { chain_moi: "Chain mới", launchpad: "Launchpad mới", nguoi: "Người theo dõi" };
-const COOKIE = "bt_auth";
 
 const vnDay = (d = new Date()) => new Date(d.getTime() + 7 * 3600e3).toISOString().slice(0, 10);
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const parse = (s, fb) => { try { return JSON.parse(s); } catch { return fb; } };
-
-async function sign(secret) {
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode("ban-tin-ok"));
-  return [...new Uint8Array(mac)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-function page(title, body) {
-  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title}</title><style>
-:root{--bg:#f3f5f7;--card:#fff;--ink:#151a22;--muted:#5d6675;--line:#dde2e9;--accent:#0a6c86}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1318;--card:#171c23;--ink:#e7ebf0;--muted:#97a1af;--line:#2a313b;--accent:#4fb7d3;color-scheme:dark}}
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px}
-form,.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px;width:min(360px,100%);display:flex;flex-direction:column;gap:12px}
-h1{font-size:1.2rem;margin:0} p{margin:0;color:var(--muted);font-size:.9rem}
-input{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
-button{font:inherit;font-weight:600;padding:9px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
-.err{color:#c8283b}</style></head><body>${body}</body></html>`;
-}
-
-const loginPage = (err = "") => new Response(page("Đăng nhập · Bản tin Thị trường", `<form method="post" action="/login">
-<h1>Bản tin Thị trường</h1><p>Nhập mật khẩu để xem.</p>
-<input type="password" name="password" id="password" autocomplete="current-password" required autofocus>
-${err ? `<p class="err">${err}</p>` : ""}<button type="submit">Vào</button></form>`), { status: err ? 401 : 200, headers: { "content-type": "text/html; charset=utf-8" } });
-
-async function authed(req, env) {
-  const c = req.headers.get("cookie") || "";
-  const m = c.match(new RegExp(`${COOKIE}=([a-f0-9]{64})`));
-  return !!m && m[1] === await sign(env.SITE_PASSWORD);
-}
 
 async function inChunks(db, sql, ids) {
   const out = [];
@@ -126,14 +95,8 @@ async function handleSources(req, env) {
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (!env.SITE_PASSWORD) return new Response(page("Chưa cài mật khẩu", `<div class="box"><h1>Chưa cài mật khẩu</h1><p>Thêm secret SITE_PASSWORD trong GitHub rồi chạy lại workflow Deploy.</p></div>`), { status: 503, headers: { "content-type": "text/html; charset=utf-8" } });
-    if (url.pathname === "/login" && req.method === "POST") {
-      const f = await req.formData();
-      if (String(f.get("password") || "") !== env.SITE_PASSWORD) { await new Promise(r => setTimeout(r, 800)); return loginPage("Sai mật khẩu."); }
-      return new Response(null, { status: 303, headers: { location: "/", "set-cookie": `${COOKIE}=${await sign(env.SITE_PASSWORD)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000` } });
-    }
-    if (url.pathname === "/logout") return new Response(null, { status: 303, headers: { location: "/", "set-cookie": `${COOKIE}=; Path=/; Max-Age=0` } });
-    if (!(await authed(req, env))) return url.pathname.startsWith("/api/") ? json({ error: "Chưa đăng nhập" }, 401) : loginPage();
+    // Không dùng mật khẩu (theo yêu cầu): ai có link đều xem và sửa nguồn được
+    if (url.pathname === "/login" || url.pathname === "/logout") return Response.redirect(new URL("/", url), 303);
     if (url.pathname === "/api/sources") return handleSources(req, env);
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("day") || "") ? url.searchParams.get("day") : vnDay();
