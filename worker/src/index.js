@@ -74,13 +74,42 @@ function render(data) {
   return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><meta name="color-scheme" content="light dark"><meta name="robots" content="noindex"><meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#171c23" media="(prefers-color-scheme: dark)"></head><body>${html}</body></html>`;
 }
 
-async function handleSources(req, env) {
-  const db = env.DB;
-  if (req.method === "GET") return json({ sources: await sources(db) });
-  // Không có mật khẩu, nhưng chỉ nhận yêu cầu ghi từ chính trang này (JSON, cùng nguồn) để trang web khác không sửa được
+// Không có mật khẩu, nhưng chỉ nhận yêu cầu ghi từ chính trang này (JSON, cùng nguồn) để trang web khác không gửi được
+function badWrite(req) {
   const origin = req.headers.get("origin");
   if (origin && origin !== new URL(req.url).origin) return json({ error: "Không cho phép" }, 403);
   if (!(req.headers.get("content-type") || "").includes("application/json")) return json({ error: "Cần JSON" }, 415);
+  return null;
+}
+
+const REFRESH_GAP_MIN = 10; // chống bấm liên tục làm cạn hạn mức AI miễn phí
+
+async function handleRefresh(req, env) {
+  const bad = badWrite(req);
+  if (bad) return bad;
+  if (!env.GH_TOKEN || !env.GH_REPO) return json({ error: "Chưa cài khoá GitHub (GH_DISPATCH_TOKEN) nên chưa cập nhật ngay được." }, 503);
+  const db = env.DB;
+  const prev = await db.prepare("SELECT value FROM state WHERE key = 'refresh_at'").first();
+  const last = prev ? Date.parse(parse(prev.value, "")) : 0;
+  const waitMin = Math.ceil(REFRESH_GAP_MIN - (Date.now() - last) / 60000);
+  if (waitMin > 0) return json({ error: `Vừa có người bấm cập nhật. Thử lại sau ${waitMin} phút.` }, 429);
+  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/hourly.yml/dispatches`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "ban-tin-worker", "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: "main" }),
+  });
+  if (r.status !== 204) return json({ error: `GitHub từ chối (mã ${r.status}). Kiểm tra lại khoá GH_DISPATCH_TOKEN.` }, 502);
+  await db.prepare("INSERT INTO state (key, value) VALUES ('refresh_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .bind(JSON.stringify(new Date().toISOString())).run();
+  return json({ ok: true });
+}
+
+async function handleSources(req, env) {
+  const db = env.DB;
+  if (req.method === "GET") return json({ sources: await sources(db) });
+  const bad = badWrite(req);
+  if (bad) return bad;
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind || ""), value = String(body.value || "").trim(), title = String(body.title || "").trim().slice(0, 100);
   if (!["telegram", "website", "sender"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
@@ -102,6 +131,11 @@ export default {
     // Không dùng mật khẩu (theo yêu cầu): ai có link đều xem và sửa nguồn được
     if (url.pathname === "/login" || url.pathname === "/logout") return Response.redirect(new URL("/", url), 303);
     if (url.pathname === "/api/sources") return handleSources(req, env);
+    if (url.pathname === "/api/refresh" && req.method === "POST") return handleRefresh(req, env);
+    if (url.pathname === "/api/status") {
+      const r = await env.DB.prepare("SELECT value FROM state WHERE key = 'last_run'").first();
+      return json({ last_run: r ? parse(r.value, null) : null, refresh: !!(env.GH_TOKEN && env.GH_REPO) });
+    }
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("day") || "") ? url.searchParams.get("day") : vnDay();
       return new Response(render(await buildData(env, day)), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });

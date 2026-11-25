@@ -9,19 +9,20 @@
   --accent:#0a6c86; --accent-soft:#e2f0f4; --nav:#eef1f4;
   --i1:#8a94a3; --i2:#5f8fa8; --i3:#c58a12; --i4:#d9631e; --i5:#c8283b;
   --up:#178a4c; --down:#c8283b; --warn-bg:#fff4dc; --warn-ink:#7a5200;
+  --surface-2:#eef1f4; --live:#e0342a;
   --sans:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --glass:rgba(243,245,247,.72);
   --ease:cubic-bezier(.23,1,.32,1); /* ease-out mạnh cho chuyển cảnh */
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f1318; --surface:#171c23; --ink:#e7ebf0; --muted:#97a1af; --line:#2a313b;
-  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72);
+  --bg:#0b0d10; --surface:#13161b; --surface-2:#1a1e24; --ink:#eceef1; --muted:#8e97a4; --line:#23272e;
+  --accent:#5cc0da; --accent-soft:#132a31; --nav:#161a20; --glass:rgba(11,13,16,.74); --live:#ff5a4e;
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1318; --surface:#171c23; --ink:#e7ebf0; --muted:#97a1af; --line:#2a313b;
-  --accent:#4fb7d3; --accent-soft:#16303a; --nav:#13181e; --glass:rgba(15,19,24,.72);
+  --bg:#0b0d10; --surface:#13161b; --surface-2:#1a1e24; --ink:#eceef1; --muted:#8e97a4; --line:#23272e;
+  --accent:#5cc0da; --accent-soft:#132a31; --nav:#161a20; --glass:rgba(11,13,16,.74); --live:#ff5a4e;
   --i1:#7d8796; --i2:#6aa3bf; --i3:#e0a530; --i4:#f07c3a; --i5:#f05468;
   --up:#3cc27a; --down:#f05468; --warn-bg:#3a2e12; --warn-ink:#f3d28a; color-scheme:dark}
 *{box-sizing:border-box}
@@ -59,7 +60,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .bar h2{font-size:1.15rem;margin:0 8px 0 0}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
 .seg button{border:0;background:none;padding:4px 12px;font-size:.85rem;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface)}
+.seg{background:var(--bg);padding:2px;gap:2px}
+.seg button{border-radius:6px}
+.seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--surface);padding:3px 10px;border-radius:999px;font-size:.8rem;white-space:nowrap}
 .chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--surface)}
@@ -70,13 +73,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .overview p{margin:0;max-width:95ch}
 .event,.card{content-visibility:auto;contain-intrinsic-size:auto 160px} /* danh sách dài: chỉ vẽ phần đang thấy */
 .event{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px}
+.event.hot{box-shadow:inset 3px 0 0 var(--c)}
 .imp{grid-row:span 3;width:40px;display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:2px}
 .imp b{font:700 1.25rem/1 var(--mono);color:var(--c)}
 .bars{display:flex;flex-direction:column-reverse;gap:2px}
 .bars i{display:block;width:18px;height:4px;border-radius:2px;background:var(--line)}
 .bars i.on{background:var(--c)}
 .meta{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:.78rem;color:var(--muted);min-width:0}
-.sec{color:var(--accent);font-weight:600}
+.sec{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-weight:600;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em}
+.sec::before{content:"";width:3px;height:12px;border-radius:2px;background:var(--sc,var(--accent))}
+.sec-kinh_te_vn{--sc:#d9631e} .sec-kinh_te_qt{--sc:#7a6ff0} .sec-chung_khoan{--sc:#178a4c} .sec-crypto{--sc:#c58a12}
 .tag{font-size:.7rem;font-weight:600;border:1px solid currentColor;border-radius:999px;padding:0 7px;color:var(--i4)}
 .event h3{margin:0;font-size:1.04rem;line-height:1.3;font-weight:650;letter-spacing:-.008em;text-wrap:balance}
 .event ul{margin:2px 0 0;padding-left:18px}
@@ -89,6 +95,11 @@ details.src summary{cursor:pointer;color:var(--accent);width:max-content}
 .srcmsg{border-left:2px solid var(--line);padding:4px 0 4px 10px;margin:6px 0;color:var(--muted);overflow-wrap:anywhere}
 .ca-inline{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
 .ca-pill{font:500 .75rem var(--mono);border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:var(--bg)}
+.tl{position:relative;padding-left:22px;display:flex;flex-direction:column;gap:12px}
+.tl::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:2px;background:var(--line);border-radius:2px}
+.tl .hour-h{position:relative}
+.tl .hour-h::before{content:"";position:absolute;left:-22px;top:5px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--accent)}
+.tl .hour-h.now::before{border-color:var(--live);background:var(--live)}
 .hour-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:8px}
 .hour-h h3{font:600 1rem var(--mono);margin:0}
 .hour-h span{color:var(--muted);font-size:.82rem}
@@ -124,6 +135,15 @@ a{color:var(--accent)}
 .wtag-chain_moi{color:var(--accent)} .wtag-launchpad{color:var(--i4)} .wtag-nguoi{color:var(--i3)}
 .tm{font:600 .8rem var(--mono);color:var(--accent);margin-right:2px;white-space:nowrap}
 .daysel{font:inherit;font-size:.82rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--live)}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--live);position:relative}
+.live.off{color:var(--muted)} .live.off i{background:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.live:not(.off) i::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--live);animation:pulse 2s cubic-bezier(.23,1,.32,1) infinite}}
+@keyframes pulse{from{transform:scale(1);opacity:.6}to{transform:scale(2.6);opacity:0}}
+.refresh{border:1px solid var(--line);background:var(--surface);color:var(--accent);border-radius:999px;padding:2px 10px;font-size:.75rem;font-weight:600;margin-left:4px}
+.refresh:disabled{color:var(--muted);cursor:default}
+#refreshMsg{font-size:.78rem;margin-top:4px}
+#refreshMsg:empty{display:none}
 .toprow{display:flex;align-items:center;gap:10px}
 .iconbtn{display:inline-grid;place-items:center;width:36px;height:36px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink)}
 .iconbtn .i-sun{display:none}
@@ -199,7 +219,7 @@ a{color:var(--accent)}
 
 <a class="skip" href="#view">Bỏ qua, đến nội dung</a>
 <header class="top gut"><div class="in">
-  <div><h1>Bản tin Thị trường</h1><div class="sub" id="sub"></div></div>
+  <div><h1>Bản tin Thị trường</h1><div class="sub"><span class="live" id="live"><i aria-hidden="true"></i><span id="liveTxt">Đang cập nhật</span></span> <span id="sub"></span> <button class="refresh" id="refreshBtn" type="button">Cập nhật ngay</button></div><div class="msg" id="refreshMsg" role="status"></div></div>
   <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-end">
     <div class="toprow">
       <div class="theme" id="dayBox" hidden><label for="daySel">Ngày</label><select id="daySel" class="daysel"></select></div>
@@ -272,7 +292,11 @@ const passBase = e => e.importance >= state.minImp && (state.tag === "all" || (e
 const inNav = (e, n) => !n.news || n.news.includes(e.topic);
 
 function header(){
-  $("#sub").textContent = (DATA.generated_at ? `Cập nhật ${fmtTime(DATA.generated_at)} · ` : "Chưa có lần cập nhật nào · ") + `${DATA.groups.length} nguồn`;
+  $("#sub").textContent = (DATA.generated_at ? `· lần cuối ${fmtTime(DATA.generated_at)} · ` : "· chưa có lần cập nhật nào · ") + `${DATA.groups.length} nguồn`;
+  // Quá 90 phút không có lượt chạy mới: chuyển sang xám "Tạm dừng" để biết hệ thống có vấn đề
+  const age = DATA.generated_at ? (Date.now() - new Date(DATA.generated_at)) / 60000 : Infinity;
+  $("#live").classList.toggle("off", !(age < 90));
+  $("#liveTxt").textContent = age < 90 ? "Đang cập nhật" : "Tạm dừng";
   $("#sub").title = DATA.groups.join("\n");
   const s = DATA.stats;
   $("#stats").innerHTML = [[s.total,"tin đọc"],[s.kept,"tin liên quan"],[allEvents().length,"sự kiện"],[DATA.tokens.length,"token"],[(DATA.watch||[]).length,"tin theo dõi"]]
@@ -333,9 +357,9 @@ function eventCard(e){
   const cas = (e.contracts||[]).map(a => { const t = DATA.tokens.find(t => t.address === a);
      return `<span class="ca-pill" translate="no" title="${esc(a)}">${t ? esc(t.symbol)+" · "+fmtPrice(t.price_usd)+" · thanh khoản "+fmtUsd(t.liquidity_usd) : short(a)}</span>`; }).join("");
   const tags = (e.tags||[]).map(t => `<span class="tag">${esc(TAGS[t]||t)}</span>`).join("");
-  return `<article class="event" style="--c:${c}">
+  return `<article class="event${e.importance >= 4 ? " hot" : ""}" style="--c:${c}">
     <div class="imp" role="img" aria-label="Mức ${e.importance}/5: ${IMP_LABEL[e.importance]}" title="${IMP_LABEL[e.importance]}"><b aria-hidden="true">${e.importance}</b><div class="bars" aria-hidden="true">${bars}</div></div>
-    <div class="meta"><span class="sec">${esc(SECTIONS[e.topic]||e.topic)}</span>${tags}<span>${IMP_LABEL[e.importance]}</span></div>
+    <div class="meta"><span class="sec sec-${esc(e.topic)}">${esc(SECTIONS[e.topic]||e.topic)}</span>${tags}<span>${IMP_LABEL[e.importance]}</span></div>
     <h3>${esc(e.title)}</h3>
     <ul>${(e.points||[]).map(pointHtml).join("")}</ul>
     ${e.reason ? `<div class="why">Lý do chấm điểm: ${esc(e.reason)}</div>` : ""}
@@ -347,14 +371,14 @@ function eventCard(e){
 function renderNews(n){
   if (state.mode === "hours") {
     const filtered = state.minImp > 1 || state.tag !== "all" || n.news;
-    const out = DATA.hours.map(h => {
+    const out = DATA.hours.map((h, i) => {
       const ev = h.events.filter(e => inNav(e, n) && passBase(e));
       if (filtered && !ev.length) return "";
       const end = h.span > 1 ? "–" + String((Number(h.hour.slice(11,13)) + h.span) % 24).padStart(2,"0") + ":00" : "";
-      return `<div class="hour-h"><h3>${esc(h.hour.slice(11))}${end} · ${esc(h.hour.slice(8,10))}/${esc(h.hour.slice(5,7))}</h3><span>${h.count} tin · ${ev.length} sự kiện</span></div>`
+      return `<div class="hour-h${i === 0 ? " now" : ""}"><h3>${esc(h.hour.slice(11))}${end} · ${esc(h.hour.slice(8,10))}/${esc(h.hour.slice(5,7))}</h3><span>${h.count} tin · ${ev.length} sự kiện</span></div>`
         + (n.news ? "" : `<p class="note">${esc(h.overview)}</p>`) + ev.map(eventCard).join("");
     }).join("");
-    return out || `<p class="empty">Không có sự kiện khớp bộ lọc.</p>`;
+    return out ? `<div class="tl">${out}</div>` : `<p class="empty">Không có sự kiện khớp bộ lọc.</p>`;
   }
   const ev = allEvents().filter(e => inNav(e, n) && passBase(e));
   const ov = !n.news ? `<section class="overview"><p class="lbl">Tóm tắt chung</p><p>${esc(DATA.digest.overview)}</p></section>` : "";
@@ -478,6 +502,29 @@ try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () =
 let THEME = "auto";
 try { THEME = localStorage.getItem("digest-theme") || "auto"; } catch(e) {}
 
+// Nút "Cập nhật ngay": nhờ máy chủ gọi lượt cập nhật, rồi hỏi lại mỗi 20 giây, có dữ liệu mới thì tải lại trang
+async function refreshNow(b){
+  const msg = $("#refreshMsg");
+  b.disabled = true; b.textContent = "Đang gửi…"; msg.className = "msg"; msg.textContent = "";
+  try {
+    const before = DATA.generated_at;
+    const r = await fetch("api/refresh", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ("Lỗi " + r.status));
+    b.textContent = "Đang cập nhật…";
+    msg.textContent = "Đã gửi lệnh. Thường mất 2–5 phút, trang sẽ tự tải lại khi có dữ liệu mới.";
+    const t0 = Date.now();
+    const poll = setInterval(async () => {
+      const s = await fetch("api/status").then(x => x.json()).catch(() => ({}));
+      if (s.last_run && s.last_run !== before) { clearInterval(poll); location.reload(); }
+      else if (Date.now() - t0 > 12 * 60000) { clearInterval(poll); b.disabled = false; b.textContent = "Cập nhật ngay"; msg.textContent = "Chưa thấy dữ liệu mới sau 12 phút. Thử tải lại trang sau."; }
+    }, 20000);
+  } catch(e) {
+    b.disabled = false; b.textContent = "Cập nhật ngay";
+    msg.className = "msg err"; msg.textContent = e.message;
+  }
+}
+
 let fadeIn = false;
 const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(e) { return true; } };
 function render(){
@@ -499,6 +546,7 @@ document.addEventListener("click", ev => {
   else if (b.dataset.watch) state.watch = b.dataset.watch;
   else if (b.dataset.tokmore) state.tokLimit += 100;
   else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
+  else if (b.id === "refreshBtn") { refreshNow(b); return; }
   else if (b.id === "themeBtn") {
     THEME = document.documentElement.classList.contains("is-dark") ? "light" : "dark";
     try { localStorage.setItem("digest-theme", THEME); } catch(e) {}

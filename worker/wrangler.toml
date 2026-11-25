@@ -8,6 +8,9 @@ type = "Text"
 globs = ["**/*.html"]
 fallthrough = true
 
+[vars]
+GH_REPO = "__GH_REPO__"  # workflow Deploy tự điền (repo chứa workflow cập nhật)
+
 [[d1_databases]]
 binding = "DB"
 database_name = "ban-tin"

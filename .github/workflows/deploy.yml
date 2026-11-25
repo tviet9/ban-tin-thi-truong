@@ -60,6 +60,7 @@ jobs:
           fi
           test -n "$ID"
           sed -i "s/__D1_ID__/$ID/" wrangler.toml
+          sed -i "s#__GH_REPO__#${{ github.repository }}#" wrangler.toml
       - name: Tạo bảng
         working-directory: worker
         run: wrangler d1 execute ban-tin --remote --file schema.sql --yes
@@ -71,3 +72,10 @@ jobs:
       - name: Gỡ mật khẩu cũ (nếu có)
         working-directory: worker
         run: wrangler secret delete SITE_PASSWORD --force || true
+      - name: Cài khoá cho nút "Cập nhật ngay" (nếu có)
+        working-directory: worker
+        env:
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+        run: |
+          if [ -n "$GH_DISPATCH_TOKEN" ]; then printf '%s' "$GH_DISPATCH_TOKEN" | tr -d '[:space:]' | wrangler secret put GH_TOKEN;
+          else echo "Chưa có secret GH_DISPATCH_TOKEN: nút Cập nhật ngay sẽ báo chưa cài"; fi
