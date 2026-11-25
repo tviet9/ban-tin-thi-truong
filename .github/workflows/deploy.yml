@@ -18,6 +18,18 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - name: Kiểm tra secret
+        env:
+          S1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          S2: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          S3: ${{ secrets.SITE_PASSWORD }}
+        run: |
+          miss=""
+          [ -z "$S1" ] && miss="$miss CLOUDFLARE_API_TOKEN"
+          [ -z "$S2" ] && miss="$miss CLOUDFLARE_ACCOUNT_ID"
+          [ -z "$S3" ] && miss="$miss SITE_PASSWORD"
+          if [ -n "$miss" ]; then echo "::error::Thiếu secret:$miss (Settings > Secrets and variables > Actions > Repository secrets)"; exit 1; fi
+          echo "Đủ secret"
       - uses: actions/setup-node@v4
         with:
           node-version: 20

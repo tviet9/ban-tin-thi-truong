@@ -17,6 +17,24 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Kiểm tra secret
+        env:
+          S1: ${{ secrets.TG_API_ID }}
+          S2: ${{ secrets.TG_API_HASH }}
+          S3: ${{ secrets.TG_SESSION }}
+          S4: ${{ secrets.GROQ_API_KEY }}
+          S5: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          S6: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          miss=""
+          [ -z "$S1" ] && miss="$miss TG_API_ID"
+          [ -z "$S2" ] && miss="$miss TG_API_HASH"
+          [ -z "$S3" ] && miss="$miss TG_SESSION"
+          [ -z "$S4" ] && miss="$miss GROQ_API_KEY"
+          [ -z "$S5" ] && miss="$miss CLOUDFLARE_ACCOUNT_ID"
+          [ -z "$S6" ] && miss="$miss CLOUDFLARE_API_TOKEN"
+          if [ -n "$miss" ]; then echo "::error::Thiếu secret:$miss"; exit 1; fi
+          echo "Đủ secret"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
