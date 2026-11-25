@@ -278,7 +278,8 @@ function pointHtml(p){
   if (!m) return `<li>${esc(p)}</li>`;
   // Chỉ có giờ: thêm ngày của trang đang xem (mọi sự kiện trong trang thuộc ngày đó, giờ VN)
   const d = DATA.day || (DATA.generated_at || "").slice(0, 10);
-  const t = /\//.test(m[1]) || !d ? m[1] : `${d.slice(8,10)}/${d.slice(5,7)} ${m[1]}`;
+  const [date, time] = m[1].includes("/") ? m[1].split(/\s+/) : [d ? `${d.slice(8,10)}/${d.slice(5,7)}` : "", m[1]];
+  const t = date ? `${time} ${date}` : time;  // giờ trước, ngày sau: 08:35 25/11
   return `<li><span class="tm">${esc(t)}</span> ${esc(m[2])}</li>`;
 }
 
