@@ -69,6 +69,10 @@ def test_rss():
     assert name == "Bao A" and items[0]["title"] == "Fed & lãi suất" and items[0]["summary"] == "Nội dung"
     assert items[0]["date"].isoformat() == "2026-11-24T08:00:00+07:00"
     assert items[1]["link"] == "", "link javascript: phải bị bỏ"
+    _, items = web_fetch.parse_feed(b'<rss xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><title>L</title>'
+                                    b'<item><title>Hi</title><link>https://x.com/a/1</link><dc:creator>@elonmusk</dc:creator></item>'
+                                    b'</channel></rss>')
+    assert items[0]["author"] == "@elonmusk", items
     atom = (b'<feed xmlns="http://www.w3.org/2005/Atom"><title>B</title><entry><title>CPI</title>'
             b'<link href="https://b.com/x"/><updated>2026-11-24T01:00:00Z</updated></entry></feed>')
     _, items = web_fetch.parse_feed(atom)

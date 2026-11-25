@@ -145,6 +145,9 @@ def main():
             xmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": "X · " + (r.get("title") or "X")} for r in src["x"]], since)
             for m in xmsgs:
                 m["source"] = "x"
+                # feed gộp (List X): ghi theo tác giả từng bài để lọc và tính trending theo tài khoản
+                if m.get("sender"):
+                    m["group"] = "X · @" + m["sender"].lstrip("@")
             wmsgs += xmsgs
         web_seen = db.get_state("web_seen", [])
         msgs += [m for m in wmsgs if m["uid"] not in set(web_seen)]

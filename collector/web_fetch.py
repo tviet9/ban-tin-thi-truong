@@ -66,7 +66,7 @@ def parse_feed(body):
             title = _clean(el.text)
         if name not in ("item", "entry"):
             continue
-        it = {"title": "", "summary": "", "link": "", "date": None}
+        it = {"title": "", "summary": "", "link": "", "date": None, "author": ""}
         for ch in el:
             n = _local(ch.tag)
             if n == "title":
@@ -75,6 +75,9 @@ def parse_feed(body):
                 it["summary"] = _clean(ch.text)[:600]
             elif n == "link":
                 it["link"] = ch.get("href") or (ch.text or "").strip()
+            elif n in ("creator", "author") and not it["author"]:
+                # RSS: <dc:creator>tên</dc:creator>; Atom: <author><name>tên</name></author>
+                it["author"] = _clean(ch.text or "".join(x.text or "" for x in ch))
             elif n in ("pubdate", "published", "updated", "date") and not it["date"]:
                 it["date"] = _date(ch.text)
         if not re.match(r"^https?://", it["link"] or "", re.I):
@@ -113,7 +116,7 @@ def fetch(websites, since, site_offset=100):
             messages.append({
                 "uid": uid, "id": uid, "group_id": f"web:{w['url']}", "group": name,
                 "date": (it["date"] or datetime.now(timezone.utc)).isoformat(),
-                "sender": None, "text": f"{it['title']}. {it['summary']}".strip(),
+                "sender": it["author"] or None, "text": f"{it['title']}. {it['summary']}".strip(),
                 "urls": [it["link"]] if it["link"] else [], "link": it["link"] or url, "source": "web",
             })
             n += 1
