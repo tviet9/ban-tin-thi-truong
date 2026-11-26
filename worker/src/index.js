@@ -156,6 +156,11 @@ export default {
       return json({ last_run: r ? parse(r.value, null) : null, cron_last: c ? parse(c.value, null) : null,
                     refresh: !!(env.GH_TOKEN && env.GH_REPO) });
     }
+    if (url.pathname === "/api/day") {  // dữ liệu một ngày, để trang tải thêm ngày cũ khi lướt xuống
+      const d = url.searchParams.get("day") || "";
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return json({ error: "Ngày không hợp lệ" }, 400);
+      return json(await buildData(env, d));
+    }
     if (url.pathname === "/" || url.pathname === "/index.html") {
       const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("day") || "") ? url.searchParams.get("day") : vnDay();
       return new Response(render(await buildData(env, day)), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });

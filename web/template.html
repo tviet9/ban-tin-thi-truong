@@ -142,6 +142,9 @@ a{color:var(--accent)}
 .trend-card .tbar,.trend-card .tacc{grid-column:2/-1}
 .trend-card .small{grid-column:2}
 .trend-card details[open] summary{margin-bottom:6px}
+.dayhead{display:flex;align-items:center;gap:10px;margin:22px 0 2px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.dayhead::after{content:"";flex:1;height:1px;background:var(--line)}
+#more{padding:18px 0 4px;text-align:center;color:var(--muted);font-size:.82rem}
 .tm{font:600 .8rem var(--mono);color:var(--accent);margin-right:2px;white-space:nowrap}
 .daysel{font:inherit;font-size:.82rem;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 8px}
 .live{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--live)}
@@ -249,7 +252,8 @@ a{color:var(--accent)}
 </div>
 
 <script>
-const DATA = /*__DATA__*/null;
+let DATA = /*__DATA__*/null;
+const TODAY = DATA;  // ngày đang mở trang; các ngày cũ tải thêm khi lướt xuống
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const IMP_LABEL = {5:"Rất quan trọng",4:"Quan trọng",3:"Đáng chú ý",2:"Tham khảo",1:"Tin đồn / quảng cáo"};
@@ -395,7 +399,7 @@ function renderNews(n){
       const ev = h.events.filter(e => inNav(e, n) && passBase(e));
       if (filtered && !ev.length) return "";
       const end = h.span > 1 ? "–" + String((Number(h.hour.slice(11,13)) + h.span) % 24).padStart(2,"0") + ":00" : "";
-      return `<div class="hour-h${i === 0 ? " now" : ""}"><h3>${esc(h.hour.slice(11))}${end} · ${esc(h.hour.slice(8,10))}/${esc(h.hour.slice(5,7))}</h3><span>${h.count} tin · ${ev.length} sự kiện</span></div>`
+      return `<div class="hour-h${i === 0 && DATA === TODAY ? " now" : ""}"><h3>${esc(h.hour.slice(11))}${end} · ${esc(h.hour.slice(8,10))}/${esc(h.hour.slice(5,7))}</h3><span>${h.count} tin · ${ev.length} sự kiện</span></div>`
         + (n.news ? "" : `<p class="note">${esc(h.overview)}</p>`) + ev.map(eventCard).join("");
     }).join("");
     return out ? `<div class="tl">${out}</div>` : `<p class="empty">Không có sự kiện khớp bộ lọc.</p>`;
@@ -590,13 +594,58 @@ async function refreshNow(b){
 
 let fadeIn = false;
 const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(e) { return true; } };
-function render(){
-  side(); bar();
-  const n = cur();
-  $("#view").innerHTML = n.id === "tokens" ? renderTokens() : n.id === "x_ca" ? renderTokens(true)
+// Dòng tin xuyên suốt: các mục dạng danh sách lướt xuống sẽ nối tiếp tin của những ngày trước
+const FEED = new Set(["all","kinh_te","kinh_te_vn","kinh_te_qt","chung_khoan","crypto","watch","links","x_posts"]);
+const dayCache = {};
+let feedDays = [], feedObs = null, feedBusy = false;
+const OLDER = () => (TODAY.days || []).filter(d => d < TODAY.day).sort().reverse();
+const dayLabel = d => { try { return new Date(d + "T12:00:00+07:00").toLocaleDateString("vi-VN", {weekday:"long", day:"2-digit", month:"2-digit", year:"numeric"}); } catch(e) { return d; } };
+function viewHtml(n){
+  return n.id === "tokens" ? renderTokens() : n.id === "x_ca" ? renderTokens(true)
     : n.id === "x_posts" ? renderXPosts() : n.id === "x_trend" ? renderXTrend()
     : n.id === "watch" ? renderWatch() : n.id === "links" ? renderLinks()
     : n.id === "settings" ? renderSettings() : renderNews(n);
+}
+function withDay(d, fn){ const old = DATA; DATA = d; try { return fn(); } finally { DATA = old; } }
+async function loadOlder(){
+  if (feedBusy) return;
+  const next = OLDER()[feedDays.length];
+  const more = $("#more");
+  if (!next) { if (more) more.textContent = "Đã hết tin. Dữ liệu được lưu tối đa 1 năm."; feedObs?.disconnect(); return; }
+  feedBusy = true;
+  if (more) more.textContent = `Đang tải ${dayLabel(next)}…`;
+  try {
+    if (!dayCache[next]) {
+      const r = await fetch("api/day?day=" + next);
+      if (!r.ok) throw new Error("Lỗi " + r.status);
+      dayCache[next] = await r.json();
+    }
+    const n = cur();
+    if (!FEED.has(n.id)) return;
+    const html = withDay(dayCache[next], () => viewHtml(n));
+    feedDays.push(next);
+    more.insertAdjacentHTML("beforebegin", `<h2 class="dayhead" id="day-${next}">${esc(dayLabel(next))}</h2>${html}`);
+    more.textContent = OLDER()[feedDays.length] ? "Lướt tiếp để xem ngày trước…" : "Đã hết tin. Dữ liệu được lưu tối đa 1 năm.";
+  } catch(e) {
+    if (more) more.textContent = "Chưa tải được ngày cũ (" + e.message + "). Lướt lại để thử.";
+  } finally { feedBusy = false; }
+  // nếu trang còn ngắn (ngày cũ ít tin) thì tải tiếp luôn
+  if (more && more.getBoundingClientRect().top < innerHeight + 400 && OLDER()[feedDays.length]) loadOlder();
+}
+function armFeed(n){
+  feedObs?.disconnect(); feedDays = [];
+  if (!FEED.has(n.id) || !TODAY.api || !OLDER().length) return;
+  $("#view").insertAdjacentHTML("beforeend", `<div id="more" role="status">Lướt xuống để xem ngày trước…</div>`);
+  feedObs = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) loadOlder(); }, {rootMargin: "600px 0px"});
+  feedObs.observe($("#more"));
+}
+
+function render(){
+  side(); bar();
+  const n = cur();
+  const html = viewHtml(n);
+  $("#view").innerHTML = (FEED.has(n.id) && TODAY.api && OLDER().length ? `<h2 class="dayhead" id="day-${TODAY.day}">${esc(dayLabel(TODAY.day))}</h2>` : "") + html;
+  armFeed(n);
   // Đổi mục: nội dung mới hiện mờ dần (ngắn, không trượt), tắt khi người dùng chọn giảm chuyển động
   if (fadeIn && !calm() && $("#view").animate) $("#view").animate([{opacity:0},{opacity:1}], {duration:160, easing:"cubic-bezier(.23,1,.32,1)"});
   fadeIn = false;
