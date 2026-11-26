@@ -171,6 +171,9 @@ a{color:var(--accent)}
 .set h3{margin:0;font-size:1rem}
 .srcrow{display:flex;justify-content:space-between;gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:8px;min-width:0}
 .set h3 + .srcrow{border-top:0;padding-top:0}
+.hs{display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--muted);margin-top:3px}
+.hs .hd{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.hs.ok .hd{background:var(--up)} .hs.bad{color:var(--down)} .hs.bad .hd{background:var(--down)}
 .srcrow .v{font:500 .78rem var(--mono);color:var(--muted);overflow-wrap:anywhere}
 .srcrow > div{min-width:0}
 .srcrow b{overflow-wrap:anywhere}
@@ -519,6 +522,7 @@ const KINDS = {
   website: {label:"Trang web / báo", ph:"https://vnexpress.net/rss/kinh-doanh.rss…"},
   sender: {label:"Người theo dõi", ph:"@username…"},
   x: {label:"X: List hoặc tài khoản", ph:"https://x.com/i/lists/… hoặc @tên…"},
+  youtube: {label:"Kênh YouTube", ph:"https://www.youtube.com/@tenkenh…"},
 };
 function parseTelegram(v){
   v = v.trim();
@@ -526,13 +530,27 @@ function parseTelegram(v){
   const u = v.match(/(?:t\.me\/|@)([A-Za-z0-9_]{4,})/); if (u) return "@" + u[1];
   return /^-?\d+$/.test(v) ? v : null;
 }
+// Trạng thái nguồn: xanh = lấy được ở lượt gần nhất, đỏ = lượt gần nhất lỗi, xám = chưa chạy lần nào
+function health(key){
+  const h = (DATA.sources?.health || {})[key];
+  if (!h) return `<div class="hs"><i class="hd"></i>Chưa chạy lần nào (nguồn mới có hiệu lực từ lượt cập nhật kế tiếp)</div>`;
+  const bad = h.err_at && (!h.ok_at || h.err_at > h.ok_at);
+  if (bad) return `<div class="hs bad"><i class="hd"></i>Lỗi lúc ${fmtTime(h.err_at)}: ${esc(h.err || "")}${h.ok_at ? ` · lấy được lần cuối ${fmtTime(h.ok_at)}` : ""}</div>`;
+  return `<div class="hs ok"><i class="hd"></i>Lấy được lúc ${fmtTime(h.ok_at)}${h.count != null ? ` · ${h.count} tin mới` : ""}</div>`;
+}
+function svcRows(){
+  const hs = DATA.sources?.health || {};
+  const name = k => k === "svc:jina" ? "Đọc toàn văn bài báo (Jina Reader)" : k === "svc:yt_sub" ? "Phụ đề YouTube" : "Máy đọc X: " + k.slice(11);
+  return Object.keys(hs).filter(k => k.startsWith("svc:")).sort().map(k => `<div class="srcrow"><div><b>${esc(name(k))}</b>${health(k)}</div></div>`);
+}
 function renderSettings(){
   const s = DATA.sources || {telegram:[], websites:[], watch_senders:[]};
   const del = (kind, v) => `<button class="btn" data-del="${kind}" data-val="${esc(v)}">Xoá</button>`;
   const block = (title, rows, empty) => `<section class="set"><h3>${title}</h3>${rows.length ? rows.join("") : `<p class="note">${empty}</p>`}</section>`;
-  const tg = (s.telegram||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||g.id)}</b><div class="v">${esc(g.id)}</div></div>${del("telegram", g.id)}</div>`);
-  const web = (s.websites||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div></div>${del("website", w.url)}</div>`);
-  const xs = (s.x||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||"X")}</b><div class="v">${esc(w.url)}</div></div>${del("x", w.url)}</div>`);
+  const tg = (s.telegram||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||g.id)}</b><div class="v">${esc(g.id)}</div>${health("telegram:" + g.id)}</div>${del("telegram", g.id)}</div>`);
+  const web = (s.websites||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div>${health("website:" + w.url)}</div>${del("website", w.url)}</div>`);
+  const xs = (s.x||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||"X")}</b><div class="v">${esc(w.url)}</div>${health("x:" + w.url)}</div>${del("x", w.url)}</div>`);
+  const yts = (s.youtube||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div>${health("youtube:" + w.url)}</div>${del("youtube", w.url)}</div>`);
   const ppl = (s.watch_senders||[]).map(p => `<div class="srcrow"><div><b>@${esc(String(p).replace(/^@/,""))}</b></div>${del("sender", p)}</div>`);
   const note = `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 1 giờ). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`;
   return note + `<section class="set"><h3>Thêm nguồn</h3>
@@ -545,7 +563,9 @@ function renderSettings(){
     + block("Nhóm Telegram", tg, "Chưa có nhóm nào.")
     + block("Trang web / báo", web, "Chưa có trang nào. Thêm link RSS của báo để lấy tin kinh tế, chứng khoán.")
     + block("Tài khoản X", xs, "Chưa có nguồn X. Nên dán link một List X (x.com/i/lists/…) chứa các tài khoản cần theo dõi: đọc một List ít bị chặn hơn đọc từng tài khoản.")
-    + block("Người theo dõi", ppl, "Chưa có ai.");
+    + block("Kênh YouTube", yts, "Chưa có kênh nào. Video mới được tóm tắt từ phụ đề; YouTube chặn thì dùng tiêu đề và mô tả video.")
+    + block("Người theo dõi", ppl, "Chưa có ai.")
+    + block("Dịch vụ phụ", svcRows(), "Chưa có dữ liệu. Hiện sau lượt cập nhật kế tiếp.");
 }
 async function api(method, body){
   const r = await fetch("api/sources", {method, headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
@@ -565,6 +585,11 @@ document.addEventListener("submit", async ev => {
   if (kind === "telegram") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100… hoặc @tennhom."; return; } }
   if (kind === "website" && !/^https?:\/\//.test(value)) value = "https://" + value;
   if (kind === "sender") value = value.replace(/^@/, "");
+  if (kind === "youtube") {  // nhận link kênh, @tên hoặc ID UC...
+    const id = value.match(/(UC[\w-]{22})/), h = value.match(/youtube\.com\/(@[\w.-]+)/i) || value.match(/^(@[\w.-]+)$/);
+    value = id ? id[1] : h ? h[1] : /^[\w.-]{3,}$/.test(value) ? "@" + value : value;
+    if (!/^(UC[\w-]{22}|@[\w.-]{3,})$/.test(value)) { msg.className = "msg err"; msg.textContent = "Dán link kênh (youtube.com/@tên), @tên hoặc ID kênh UC…"; return; }
+  }
   if (kind === "x") {  // nhận link List, link tài khoản, @tên hoặc link RSS
     const list = value.match(/(?:x|twitter)\.com\/i\/lists\/(\d+)/i), acc = value.match(/^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/?$/i);
     value = list ? "list:" + list[1] : acc ? "@" + acc[1] : /^@?[A-Za-z0-9_]{1,15}$/.test(value) ? "@" + value.replace(/^@/, "") : value;

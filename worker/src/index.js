@@ -22,13 +22,17 @@ async function inChunks(db, sql, ids) {
 
 async function sources(db) {
   const r = await db.prepare("SELECT kind, value, title FROM sources ORDER BY created_at").all();
-  const s = { telegram: [], websites: [], watch_senders: [], x: [] };
+  const s = { telegram: [], websites: [], watch_senders: [], x: [], youtube: [] };
   for (const x of r.results) {
     if (x.kind === "telegram") s.telegram.push({ id: x.value, title: x.title });
     else if (x.kind === "website") s.websites.push({ url: x.value, title: x.title });
     else if (x.kind === "sender") s.watch_senders.push(x.value);
     else if (x.kind === "x") s.x.push({ url: x.value, title: x.title });
+    else if (x.kind === "youtube") s.youtube.push({ url: x.value, title: x.title });
   }
+  // trạng thái từng nguồn do bộ thu tin ghi (lần lấy được cuối, lỗi gần nhất)
+  const h = await db.prepare("SELECT value FROM state WHERE key = 'source_health'").first();
+  s.health = h ? parse(h.value, {}) : {};
   return s;
 }
 
@@ -71,7 +75,7 @@ async function buildData(env, day) {
     generated_at: last ? parse(last.value, null) : null,
     sample: false, api: true, day, days: days.results.map(r => r.day),
     topics: TOPICS, sections: SECTIONS, tags: TAGS,
-    groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url), src.x.map(x => "X · " + (x.title || "X"))),
+    groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url), src.x.map(x => "X · " + (x.title || "X")), src.youtube.map(y => "YouTube · " + (y.title || y.url))),
     stats: { total: stats.total || 0, kept: stats.kept || 0 },
     digest: digest || { overview: "Chưa có dữ liệu cho ngày này. Hệ thống cập nhật mỗi giờ.", events: [] },
     hours, tokens,
@@ -131,10 +135,11 @@ async function handleSources(req, env) {
   if (bad) return bad;
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind || ""), value = String(body.value || "").trim(), title = String(body.title || "").trim().slice(0, 100);
-  if (!["telegram", "website", "sender", "x"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
+  if (!["telegram", "website", "sender", "x", "youtube"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
   if (kind === "telegram" && !/^(-100\d{6,}|@[A-Za-z0-9_]{4,})$/.test(value)) return json({ error: "ID nhóm phải dạng -100... hoặc @tennhom" }, 400);
   if (kind === "website" && !/^https?:\/\/[^\s]+$/.test(value)) return json({ error: "Link trang web phải bắt đầu bằng http(s)://" }, 400);
   if (kind === "x" && !/^(list:\d+|@[A-Za-z0-9_]{1,15}|https?:\/\/\S+)$/.test(value)) return json({ error: "Nguồn X phải là link List (x.com/i/lists/...), @tài_khoản hoặc link RSS" }, 400);
+  if (kind === "youtube" && !/^(UC[\w-]{22}|@[\w.-]{3,100})$/.test(value)) return json({ error: "Kênh YouTube phải là link kênh, @tên_kênh hoặc ID UC..." }, 400);
   if (kind === "sender" && !/^[A-Za-z0-9_]{3,}$/.test(value)) return json({ error: "Username chỉ gồm chữ, số, dấu _" }, 400);
   if (req.method === "POST") {
     await db.prepare("INSERT INTO sources (kind, value, title, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, value) DO UPDATE SET title = excluded.title")

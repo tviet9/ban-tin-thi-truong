@@ -14,6 +14,9 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import dexscreener  # noqa: E402
+import fulltext  # noqa: E402
+import youtube_fetch  # noqa: E402
+from health import Health  # noqa: E402
 import summarize as sm  # noqa: E402
 import telegram_fetch  # noqa: E402
 import web_fetch  # noqa: E402
@@ -54,7 +57,7 @@ def start_of_today():
 
 def load_sources(db):
     rows = db.query("SELECT kind, value, title FROM sources ORDER BY kind, value")
-    out = {"telegram": [], "website": [], "sender": [], "x": []}
+    out = {"telegram": [], "website": [], "sender": [], "x": [], "youtube": []}
     for r in rows:
         out.setdefault(r["kind"], []).append(r)
     return out
@@ -121,7 +124,9 @@ def main():
         return
     src = load_sources(db)
     now = datetime.now(timezone.utc)
-    log(f"[nguồn] {len(src['telegram'])} nhóm, {len(src['website'])} trang web, {len(src['sender'])} người theo dõi")
+    log(f"[nguồn] {len(src['telegram'])} nhóm, {len(src['website'])} trang web, {len(src['x'])} nguồn X, "
+        f"{len(src['youtube'])} kênh YouTube, {len(src['sender'])} người theo dõi")
+    health = Health(db.get_state("source_health", {}))
 
     # người theo dõi lấy từ database
     import filters
@@ -132,22 +137,37 @@ def main():
     msgs, info = ([], {})
     if src["telegram"]:
         msgs, info = asyncio.run(fetch_telegram(src["telegram"], min_ids, tg_creds()))
+    per_group = defaultdict(int)
+    for m in msgs:
+        per_group[str(m["group_id"])] += 1
+    for r in src["telegram"]:
+        if str(r["value"]) in info:
+            health.ok("telegram:" + str(r["value"]), per_group[str(r["value"])])
+        else:
+            health.fail("telegram:" + str(r["value"]), "not_joined")
     # cập nhật tên nhóm thật nếu người dùng chưa đặt tên
     for r in src["telegram"]:
         i = info.get(str(r["value"]))
         if i and not r.get("title"):
             db.query("UPDATE sources SET title = ? WHERE kind = 'telegram' AND value = ?", [i["real_title"], r["value"]])
 
-    # 2. Trang web và tài khoản X (cả hai đọc qua RSS), bỏ bài đã lưu
+    # 2. Trang web, tài khoản X và kênh YouTube (đều đọc qua RSS), bỏ bài đã lưu
     xmsgs = []
-    if src["website"] or src["x"]:
+    has_feeds = bool(src["website"] or src["x"] or src["youtube"])
+    if has_feeds:
         last_web = db.get_state("last_web_run")
         since = backfill_since() or (datetime.fromisoformat(last_web) - timedelta(hours=2) if last_web else start_of_today())
-        wmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": r.get("title")} for r in src["website"]], since)
+        wmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": r.get("title")} for r in src["website"]], since,
+                                   health=health)
         if src["x"]:
-            xmsgs = x_fetch.fetch([r["value"] for r in src["x"]], since, log)
+            xmsgs = x_fetch.fetch([r["value"] for r in src["x"]], since, log, health=health)
             log(f"[x] đọc {len(xmsgs)} bài")
             wmsgs += xmsgs
+        if src["youtube"]:
+            yt_cache = db.get_state("yt_ids", {})
+            wmsgs += youtube_fetch.fetch([{"value": r["value"], "title": r.get("title")} for r in src["youtube"]],
+                                         since, health, yt_cache, log)
+            db.set_state("yt_ids", yt_cache)
         web_seen = db.get_state("web_seen", [])
         msgs += [m for m in wmsgs if m["uid"] not in set(web_seen)]
         web_seen = (web_seen + [m["uid"] for m in wmsgs if m["uid"] not in set(web_seen)])[-5000:]
@@ -260,6 +280,9 @@ def main():
                 "context": m["text"][:200], "msg": m["link"]}, ensure_ascii=False)]
     db.upsert("links", ["url", "day", "date", "data"], list(link_rows.values()), conflict=["url", "day"])
 
+    # 4b. Bài báo có chủ đề: lấy toàn văn qua Jina Reader để AI tóm tắt sát hơn
+    fulltext.enrich(kept, health, log)
+
     # 5. Tóm tắt theo giờ (gộp với phần đã có của giờ đó nếu lượt trước đã chạy)
     by_hour = defaultdict(list)
     for m in kept:
@@ -308,7 +331,9 @@ def main():
         "username": m.get("sender_username"), "text": m["text"][:400]},
         ensure_ascii=False)] for m in kept], conflict=["uid"])
     db.set_state("min_ids", min_ids)
-    if src["website"] or src["x"]:
+    health.keep_only({f"{k}:{r['value']}" for k in ("telegram", "website", "x", "youtube") for r in src[k]})
+    db.set_state("source_health", health.d)
+    if has_feeds:
         db.set_state("web_seen", web_seen)
         db.set_state("last_web_run", now.isoformat())
     db.set_state("last_run", now.isoformat())

@@ -79,7 +79,7 @@ def main():
     run_hourly.sm.call = fake_call
     base = datetime.now(timezone.utc) - timedelta(minutes=20)
 
-    def fake_web(sites, since, site_offset=100):
+    def fake_web(sites, since, site_offset=100, **kw):
         out = []
         if not sites:
             return [], []
@@ -90,6 +90,7 @@ def main():
                         "link": f"https://nitter.example/elonmusk/status/{i}#m", "source": "web", "raw_title": t})
         return out, []
     run_hourly.web_fetch.fetch = fake_web
+    run_hourly.fulltext.enrich = lambda msgs, health, log=print, **kw: 0  # không gọi mạng trong test
     run_hourly.main()
     # chạy lần 2: không có tin mới, token đã có giá lần đầu
     run_hourly.fetch_telegram = lambda g, m, c: _empty()
@@ -111,6 +112,8 @@ def main():
     assert counts["digests"] == 1 and counts["tokens"] == 2 and counts["watch"] >= 1 and counts["messages"] > 10
     td = [json.loads(r[0]) for r in con.execute("SELECT data FROM token_days")]
     assert all(t["change_since_first"] is not None for t in td), "lần 2 phải có % so với lần đầu"
+    hs = json.loads(con.execute("SELECT value FROM state WHERE key='source_health'").fetchone()[0])
+    assert "ok_at" in hs.get("telegram:-1001", {}), hs
     print("test_hourly OK")
 
 
