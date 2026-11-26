@@ -111,7 +111,103 @@ def test_dex_down():
     print("dex-down OK")
 
 
+def test_health():
+    import urllib.error
+    from health import Health, classify
+    assert classify(urllib.error.HTTPError("u", 429, "", {}, None))[0] == "rate_limited"
+    assert classify(urllib.error.HTTPError("u", 403, "", {}, None))[0] == "blocked"
+    assert classify(urllib.error.URLError("x"))[0] == "network"
+    h = Health()
+    h.ok("website:a", 3)
+    h.fail("website:b", "not_found")
+    h.ok("svc:jina", 1)
+    h.keep_only({"website:a"})
+    assert set(h.d) == {"website:a", "svc:jina"} and h.d["website:a"]["count"] == 3
+    print("health OK")
+
+
+def test_fulltext():
+    import fulltext
+    from health import Health
+    body = "x " * 200
+    md = ("Title: A\nURL Source: u\nMarkdown Content:\n![ảnh](i.png)\nMenu\n"
+          f"Đoạn 1 của bài viết về [lãi suất](https://a) điều hành, {body}\nChia sẻ")
+    assert "lãi suất điều hành" in fulltext.clean(md) and "Menu" not in fulltext.clean(md)
+    msgs = [{"source": "web", "topics": ["kinh_te_vn"], "link": f"https://a/{i}", "date": f"2026-01-0{i}",
+             "text": f"Tiêu đề {i}. mô tả", "raw_title": f"Tiêu đề {i}"} for i in range(1, 4)]
+    msgs.append({"source": "telegram", "topics": ["crypto"], "link": "https://t.me/x", "date": "2026-01-09", "text": "tg"})
+    h = Health()
+    calls = []
+    got = fulltext.enrich(msgs, h, log=lambda *_: None, pause_s=0, reader=lambda u: calls.append(u) or md)
+    assert got == 3 and len(calls) == 3 and msgs[0]["text"].startswith("Tiêu đề 1. Đoạn 1") and msgs[3]["text"] == "tg"
+    assert "ok_at" in h.d["svc:jina"]
+    # trang bắt xác minh: không thay nội dung, ghi lỗi
+    m2 = [dict(msgs[0], text="T. mô tả")]
+    fulltext.enrich(m2, h, log=lambda *_: None, pause_s=0, reader=lambda u: "Just a moment... " + body * 3)
+    assert m2[0]["text"] == "T. mô tả" and h.d["svc:jina"]["kind"] == "blocked"
+    print("fulltext OK")
+
+
+def test_youtube():
+    from datetime import datetime, timezone
+    import youtube_fetch as yt
+    from health import Health
+    assert yt.normalize("https://www.youtube.com/@KenhABC/videos") == "@KenhABC"
+    assert yt.normalize("https://www.youtube.com/channel/UC" + "a" * 22) == "UC" + "a" * 22
+    feed = ("<feed xmlns='http://www.w3.org/2005/Atom' xmlns:yt='http://www.youtube.com/xml/schemas/2015' "
+            "xmlns:media='http://search.yahoo.com/mrss/'><title>Kênh A</title>"
+            "<entry><yt:videoId>v1</yt:videoId><title>Nhận định thị trường</title>"
+            "<link rel='alternate' href='https://www.youtube.com/watch?v=v1'/><author><name>A</name></author>"
+            "<published>2026-11-25T10:00:00+00:00</published><media:group><media:description>Mô tả video</media:description>"
+            "</media:group></entry><entry><yt:videoId>v0</yt:videoId><title>Cũ</title>"
+            "<published>2020-01-01T00:00:00+00:00</published></entry></feed>").encode()
+    name, items = yt.parse_feed(feed)
+    assert name == "Kênh A" and items[0]["desc"] == "Mô tả video" and items[0]["author"] == "A"
+    yt._get = lambda url, timeout=20: feed
+    h = Health()
+    since = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    out = yt.fetch([{"value": "UC" + "b" * 22, "title": None}], since, h, {}, log=lambda *_: None, sub=lambda u: "VN-Index tăng")
+    assert len(out) == 1 and out[0]["uid"] == "yt-v1" and out[0]["text"] == "Nhận định thị trường. VN-Index tăng"
+    def blocked(u):
+        raise RuntimeError("Sign in to confirm you're not a bot")
+    out = yt.fetch([{"value": "UC" + "b" * 22, "title": None}], since, h, {}, log=lambda *_: None, sub=blocked)
+    assert out[0]["text"] == "Nhận định thị trường. Mô tả video" and h.d["svc:yt_sub"]["kind"] == "blocked"
+    print("youtube OK")
+
+
+def test_nitter_fallback():
+    import x_fetch
+    from health import Health
+    tried = []
+
+    def fake_fetch(sites, since, site_offset=100, health=None, key_prefix="", timeout=25):
+        url = sites[0]["url"]
+        tried.append(url.split("/")[2])
+        if "kareem" in url:
+            health.fail(key_prefix + url, "rate_limited")
+            return [], []
+        health.ok(key_prefix + url, 1)
+        return [{"uid": "w-1", "text": "Hello", "raw_title": "Hello", "link": "https://n/a/status/1#m", "sender": "@a"}], []
+    old = x_fetch.web_fetch.fetch
+    x_fetch.web_fetch.fetch = fake_fetch
+    try:
+        h = Health()
+        out = x_fetch.fetch(["list:1"], None, log=lambda *_: None, health=h)
+        assert len(out) == 1 and tried[:2] == ["nitter.kareem.one", "nitter.tiekoetter.com"], tried
+        assert h.d["svc:nitter:nitter.kareem.one"]["kind"] == "rate_limited" and "ok_at" in h.d["x:list:1"]
+        tried.clear()
+        x_fetch.fetch(["list:1"], None, log=lambda *_: None, health=h)
+        assert tried[0] == "nitter.tiekoetter.com", "máy lấy được gần nhất phải thử trước"
+    finally:
+        x_fetch.web_fetch.fetch = old
+    print("nitter fallback OK")
+
+
 if __name__ == "__main__":
+    test_health()
+    test_fulltext()
+    test_youtube()
+    test_nitter_fallback()
     test_filters()
     test_dex_parse()
     test_rss()

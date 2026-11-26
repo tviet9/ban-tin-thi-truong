@@ -17,9 +17,9 @@ def _n(x):
     return "(trang)" if os.environ.get("HIDE_NAMES") == "1" else x
 
 
-def _get(url):
+def _get(url, timeout=25):
     req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=25) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read(), r.headers.get("Content-Type", "")
 
 
@@ -87,23 +87,29 @@ def parse_feed(body):
     return title, items
 
 
-def fetch(websites, since, site_offset=100):
-    """websites: [{"url": ..., "title": tuỳ chọn}]. Trả về (messages, sites_info)."""
+def fetch(websites, since, site_offset=100, health=None, key_prefix="website:", timeout=25):
+    """websites: [{"url": ..., "title": tuỳ chọn}]. Trả về (messages, sites_info).
+    health: ghi trạng thái từng nguồn (khoá key_prefix + url), xem health.py."""
     messages, sites = [], []
     for i, w in enumerate(websites):
         url = w["url"] if w["url"].startswith("http") else "https://" + w["url"]
+        hkey = key_prefix + w["url"]
         try:
-            body, ctype = _get(url)
+            body, ctype = _get(url, timeout)
             if "html" in ctype.lower() and b"<rss" not in body[:500] and b"<feed" not in body[:500]:
                 feed = _find_feed(url, body)
                 if not feed:
                     print(f"[web] {_n(url)}: không tìm thấy RSS. Hãy nhập thẳng link RSS của trang.")
+                    if health:
+                        health.fail(hkey, "no_feed")
                     continue
                 url = feed
-                body, _ = _get(url)
+                body, _ = _get(url, timeout)
             site_title, items = parse_feed(body)
         except Exception as e:  # noqa: BLE001
             print(f"[web] {_n(url)}: lỗi {type(e).__name__}")
+            if health:
+                health.fail_exc(hkey, e)
             continue
         name = w.get("title") or site_title or url
         sites.append({"url": w["url"], "feed": url, "title": name})
@@ -121,4 +127,6 @@ def fetch(websites, since, site_offset=100):
             })
             n += 1
         print(f"[web] {_n(name)}: {n} bài")
+        if health:
+            health.ok(hkey, n)
     return messages, sites

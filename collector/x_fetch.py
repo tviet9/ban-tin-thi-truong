@@ -10,8 +10,10 @@ import re
 
 import web_fetch
 
-# Các máy Nitter công khai, thử lần lượt. shortcut: máy cộng đồng có thể ngừng bất cứ lúc nào, khi đó thêm máy khác vào đây.
-NITTER_HOSTS = ["nitter.kareem.one", "nitter.tiekoetter.com"]
+# Các máy Nitter công khai, thử lần lượt (máy lấy được gần nhất thử trước). Máy cộng đồng có thể ngừng bất cứ lúc
+# nào: trạng thái từng máy hiện ở trang Cài đặt nguồn; thêm hoặc bớt máy ở danh sách này.
+NITTER_HOSTS = ["nitter.kareem.one", "nitter.tiekoetter.com", "xcancel.com", "nitter.poast.org",
+                "nitter.privacyredirect.com", "nitter.net", "nitter.space", "lightbrd.com"]
 RT = re.compile(r"^RT by @(\w+):\s*")
 
 
@@ -41,21 +43,47 @@ def _tidy(m):
     return m
 
 
-def fetch(values, since, log=print):
+def host_order(health):
+    """Máy lấy được gần nhất lên đầu; máy chưa từng lấy được giữ thứ tự gốc."""
+    return sorted(NITTER_HOSTS, key=lambda h: health.last_ok("svc:nitter:" + h) if health else "", reverse=True)
+
+
+def fetch(values, since, log=print, health=None):
     """values: danh sách giá trị nguồn X. Trả về danh sách tin (đã chuẩn hoá)."""
+    from health import Health
     out = []
     for v in values:
+        key = "x:" + v
         path = feed_path(v)
         if path is None:  # link RSS có sẵn
-            got, _ = web_fetch.fetch([{"url": v, "title": "X"}], since)
+            got, _ = web_fetch.fetch([{"url": v, "title": "X"}], since, health=health, key_prefix="x:")
         else:
-            got = []
-            for host in NITTER_HOSTS:
-                got, _ = web_fetch.fetch([{"url": f"https://{host}/{path}/rss", "title": "X"}], since)
-                if got:
-                    break
-            if not got:
-                log("[x] không đọc được nguồn X lượt này (Nitter có thể đang chặn)")
+            got, ok, last_err = [], False, None
+            for host in host_order(health):
+                url = f"https://{host}/{path}/rss"
+                tmp = Health()
+                got, _ = web_fetch.fetch([{"url": url, "title": "X"}], since, health=tmp, key_prefix="", timeout=15)
+                e = tmp.d.get(url, {})
+                if "ok_at" in e and any("whitelist" in (m.get("text") or "").lower() for m in got):
+                    e = {"kind": "blocked"}  # máy trả RSS nhưng chỉ có thông báo "chưa cho phép trình đọc RSS"
+                    got = []
+                if "ok_at" in e:
+                    ok = True
+                    if health:
+                        health.ok("svc:nitter:" + host, len(got))
+                    if got:
+                        break
+                    continue  # máy trả RSS rỗng: thử máy khác cho chắc
+                last_err = e
+                if health:
+                    health.fail("svc:nitter:" + host, e.get("kind", "error"))
+            if health:
+                if ok:
+                    health.ok(key, len(got))
+                else:
+                    health.fail(key, (last_err or {}).get("kind", "error"), "mọi máy Nitter đều lỗi")
+            if not ok:
+                log("[x] không đọc được nguồn X lượt này (mọi máy Nitter đều lỗi)")
         out += [_tidy(m) for m in got]
     seen, uniq = set(), []
     for m in out:
