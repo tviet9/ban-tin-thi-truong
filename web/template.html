@@ -317,10 +317,10 @@ const inNav = (e, n) => !n.news || n.news.includes(e.topic);
 
 function header(){
   $("#sub").textContent = (DATA.generated_at ? `· lần cuối ${fmtTime(DATA.generated_at)} · ` : "· chưa có lần cập nhật nào · ") + `${DATA.groups.length} nguồn`;
-  // Quá 90 phút không có lượt chạy mới: chuyển sang xám "Tạm dừng" để biết hệ thống có vấn đề
+  // Quá 60 phút (2 lượt 30 phút) không có lượt chạy mới: chuyển sang xám "Tạm dừng" để biết hệ thống có vấn đề
   const age = DATA.generated_at ? (Date.now() - new Date(DATA.generated_at)) / 60000 : Infinity;
-  $("#live").classList.toggle("off", !(age < 90));
-  $("#liveTxt").textContent = age < 90 ? "Đang cập nhật" : "Tạm dừng";
+  $("#live").classList.toggle("off", !(age < 60));
+  $("#liveTxt").textContent = age < 60 ? "Đang cập nhật" : "Tạm dừng";
   $("#sub").title = DATA.groups.join("\n");
   const s = DATA.stats;
   $("#stats").innerHTML = [[s.total,"tin đọc"],[s.kept,"tin liên quan"],[allEvents().length,"sự kiện"],[DATA.tokens.length,"token"],[(DATA.watch||[]).length,"tin theo dõi"]]
@@ -552,7 +552,7 @@ function renderSettings(){
   const xs = (s.x||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||"X")}</b><div class="v">${esc(w.url)}</div>${health("x:" + w.url)}</div>${del("x", w.url)}</div>`);
   const yts = (s.youtube||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div>${health("youtube:" + w.url)}</div>${del("youtube", w.url)}</div>`);
   const ppl = (s.watch_senders||[]).map(p => `<div class="srcrow"><div><b>@${esc(String(p).replace(/^@/,""))}</b></div>${del("sender", p)}</div>`);
-  const note = `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 1 giờ). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`;
+  const note = `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 30 phút). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`;
   return note + `<section class="set"><h3>Thêm nguồn</h3>
     <form class="form" id="addForm">
       <label>Loại<select id="f-kind" name="kind">${Object.entries(KINDS).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></label>

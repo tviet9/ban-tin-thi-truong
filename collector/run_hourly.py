@@ -1,4 +1,4 @@
-"""Chạy mỗi giờ trên GitHub Actions: lấy tin mới -> lọc -> tra token -> tóm tắt -> ghi D1.
+"""Chạy mỗi 30 phút trên GitHub Actions: lấy tin mới -> lọc -> tra token -> tóm tắt -> ghi D1.
 
 Biến môi trường: TG_API_ID, TG_API_HASH, TG_SESSION, GROQ_API_KEY, (GEMINI_API_KEY),
 CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN. Đặt HIDE_NAMES=1 để log không lộ tên nhóm.
@@ -28,6 +28,7 @@ from filters import filter_messages  # noqa: E402
 
 VN = timezone(timedelta(hours=7))
 KEEP_DAYS = 365
+MERGE_EVERY_MIN = 55  # AI gộp lại bản tổng hợp ngày tối đa mỗi giờ một lần (lượt 30 phút xen giữa chỉ nối thêm)
 
 
 def log(msg):
@@ -119,8 +120,8 @@ def main():
         reset_today(db)
     last = db.get_state("last_run")
     if os.environ.get("TRIGGER") == "schedule" and last and \
-            datetime.now(timezone.utc) - datetime.fromisoformat(last) < timedelta(minutes=40):
-        log("[bỏ qua] lịch dự phòng: đã có lượt chạy trong 40 phút qua")
+            datetime.now(timezone.utc) - datetime.fromisoformat(last) < timedelta(minutes=25):
+        log("[bỏ qua] lịch dự phòng: đã có lượt chạy trong 25 phút qua")
         return
     src = load_sources(db)
     now = datetime.now(timezone.utc)
@@ -289,6 +290,7 @@ def main():
         if m["topics"]:
             by_hour[vn_hour(m["date"])].append(m)
     changed_days = set()
+    fresh_by_day = defaultdict(list)  # sự kiện mới của lượt này, để nối vào bản tổng hợp khi chưa đến giờ AI gộp
     for h, ms in sorted(by_hour.items()):
         old = db.query("SELECT data FROM hours WHERE hour = ?", [h])
         o = json.loads(old[0]["data"]) if old else {}
@@ -298,6 +300,7 @@ def main():
             continue
         log(f"[AI] tóm tắt {h} ({len(ms)} tin)")
         res = sm.summarize(keys, ms, f"{h} (giờ Việt Nam), 60 phút")
+        fresh_by_day[h[:10]] += res["events"]
         res = {"overview": (o.get("overview", "") + " " + res["overview"]).strip()[:1200],
                "events": o.get("events", []) + res["events"],
                "uids": sorted(done | {m["uid"] for m in ms})}
@@ -306,14 +309,35 @@ def main():
         db.upsert("hours", ["hour", "day", "data"], [[h, h[:10], json.dumps({"hour": h, "span": 1, **res},
                                                                              ensure_ascii=False)]], conflict=["hour"])
 
-    # 6. Tổng hợp ngày (chỉ khi có tin mới)
-    for d in sorted(changed_days):
+    # 6. Tổng hợp ngày: AI gộp lại tối đa mỗi giờ một lần (tiết kiệm hạn mức AI miễn phí).
+    #    Lượt xen giữa chỉ nối sự kiện mới vào cuối bản tổng hợp; lượt AI gộp kế tiếp sẽ gộp trùng.
+    merge_at = db.get_state("merge_at", {})
+    pending = set(db.get_state("merge_pending", []))
+    for d in sorted(changed_days | pending):
+        old = db.query("SELECT data FROM digests WHERE day = ?", [d])
+        last_m = merge_at.get(d)
+        if old and last_m and now - datetime.fromisoformat(last_m) < timedelta(minutes=MERGE_EVERY_MIN):
+            if fresh_by_day.get(d):
+                digest = json.loads(old[0]["data"])
+                digest["events"] = digest.get("events", []) + fresh_by_day[d]
+                db.upsert("digests", ["day", "data", "updated_at"], [[d, json.dumps(digest, ensure_ascii=False),
+                                                                      now.isoformat()]], conflict=["day"])
+                log(f"[tổng hợp] nối {len(fresh_by_day[d])} sự kiện mới vào ngày {d}, AI gộp lại ở lượt sau")
+            pending.add(d)
+            continue
         hours = [json.loads(r["data"]) for r in db.query("SELECT data FROM hours WHERE day = ?", [d])]
         events = [e for h in hours for e in h.get("events", [])]
+        pending.discard(d)
+        if not events:
+            continue
         log(f"[AI] tổng hợp ngày {d} ({len(events)} sự kiện)")
         digest = sm.merge_events(keys, events, f"ngày {d}")
         db.upsert("digests", ["day", "data", "updated_at"], [[d, json.dumps(digest, ensure_ascii=False),
                                                               now.isoformat()]], conflict=["day"])
+        merge_at[d] = now.isoformat()
+    keep = (datetime.now(VN) - timedelta(days=3)).strftime("%Y-%m-%d")
+    db.set_state("merge_at", {k: v for k, v in merge_at.items() if k >= keep})
+    db.set_state("merge_pending", sorted(d for d in pending if d >= keep))
 
     # 7. Thống kê ngày + trạng thái
     for d in days:
