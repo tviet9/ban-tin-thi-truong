@@ -83,6 +83,10 @@ WATCH = {
 # Ghi username (không có @), hoặc ID số, hoặc tên hiển thị đúng như trong nhóm.
 WATCH_SENDERS = []  # thêm trên web; danh sách ở đây được gộp thêm
 
+# Mục Link: bỏ các trang tra cứu blockchain / biểu đồ giá (CA đã có ở bảng token)
+LINK_SKIP_DOMAINS = ["solscan.io", "dexscreener.com", "bscscan.com", "etherscan.io", "basescan.org",
+                     "arbiscan.io", "tronscan.org", "tonviewer.com", "pump.fun", "gmgn.ai", "birdeye.so", "dextools.io"]
+
 # Mục hiển thị trên web (menu bên trái). AI xếp mỗi sự kiện vào đúng 1 mục.
 SECTIONS = {
     "kinh_te_vn": "Kinh tế trong nước",

@@ -105,6 +105,9 @@ def main():
     assert xp == 4, xp
     assert tr[0]["term"] == "$DOGE" and tr[0]["count"] == 2, tr[:2]
     assert any(json.loads(r[0]).get("x") for r in con.execute("SELECT data FROM token_days")), "CA nhắc trên X phải có cờ x"
+    td = {json.loads(r[0])["symbol"]: json.loads(r[0]) for r in con.execute("SELECT data FROM token_days")}
+    assert td["MEOW"]["first_group"] and td["MEOW"]["first_seen"], td["MEOW"]
+    assert not any("dexscreener.com" in r[0] for r in con.execute("SELECT url FROM links")), "link dexscreener phải bị bỏ"
     assert counts["digests"] == 1 and counts["tokens"] == 2 and counts["watch"] >= 1 and counts["messages"] > 10
     td = [json.loads(r[0]) for r in con.execute("SELECT data FROM token_days")]
     assert all(t["change_since_first"] is not None for t in td), "lần 2 phải có % so với lần đầu"

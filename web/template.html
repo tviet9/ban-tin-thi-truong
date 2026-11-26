@@ -115,6 +115,7 @@ td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:now
 tr:last-child td{border-bottom:0}
 .sym{font-weight:700;overflow-wrap:anywhere}
 .small{font-size:.72rem;color:var(--muted);font-family:var(--sans);display:block;margin-top:2px;white-space:normal}
+.seen{display:block;margin-top:3px;font-size:.72rem;color:var(--accent);font-weight:500;white-space:normal}
 .chain{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .up{color:var(--up)} .down{color:var(--down)}
 .new{font-size:.66rem;font-weight:700;color:var(--i4);margin-left:6px}
@@ -274,7 +275,7 @@ const NAV = [
   {head:"X (Twitter)"},
   {id:"x_posts", label:"Bài đăng X"},
   {id:"x_trend", label:"Trending", sub:true},
-  {id:"x_ca", label:"CA từ X", sub:true},
+  {id:"x_ca", label:"Bảng token (CA)", sub:true},
   {head:"Khác"},
   {id:"links", label:"Link"},
   {id:"settings", label:"Cài đặt nguồn"},
@@ -328,10 +329,10 @@ function header(){
 function count(n){
   if (n.id === "tokens") return DATA.tokens.length;
   if (n.id === "watch") return (DATA.watch||[]).length;
-  if (n.id === "links") return DATA.links.length;
+  if (n.id === "links") return goodLinks().length;
   if (n.id === "x_posts") return (DATA.x_posts||[]).length;
   if (n.id === "x_trend") return (DATA.x_trend||[]).length;
-  if (n.id === "x_ca") return DATA.tokens.filter(t => t.x).length;
+  if (n.id === "x_ca") { const xc = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || [])); return DATA.tokens.filter(t => t.x || xc.has(t.address)).length; }
   if (n.id === "settings") { const s = DATA.sources || {}; return (s.telegram||[]).length + (s.websites||[]).length + (s.x||[]).length; }
   return allEvents().filter(e => inNav(e, n)).length;
 }
@@ -343,7 +344,7 @@ function side(){
 
 function bar(){
   const n = cur();
-  let h = `<h2>${esc(n.label === "Trong nước" || n.label === "Ngoài nước" ? "Kinh tế " + n.label.toLowerCase() : n.label)}</h2>`;
+  let h = `<h2>${esc(n.label === "Trong nước" || n.label === "Ngoài nước" ? "Kinh tế " + n.label.toLowerCase() : n.id === "x_ca" ? "Bảng token (CA) từ X" : n.id === "tokens" ? "Bảng token (CA) từ Telegram" : n.label)}</h2>`;
   if (n.news !== undefined) {
     h += `<div class="seg" role="group" aria-label="Cách xem"><button data-mode="digest" aria-pressed="${state.mode==="digest"}">Tổng hợp</button><button data-mode="hours" aria-pressed="${state.mode==="hours"}">Theo giờ</button></div>`;
     h += `<div class="chips">` + [1,3,4,5].map(v => `<button class="chip" data-imp="${v}" aria-pressed="${state.minImp===v}">${v===1?"Mọi mức":"Từ "+v+" điểm"}</button>`).join("") + `</div>`;
@@ -409,8 +410,16 @@ function renderNews(n){
   return ov + (ev.length ? ev.map(eventCard).join("") : `<p class="empty">Chưa có sự kiện nào trong mục này${state.minImp>1||state.tag!=="all"?" khớp bộ lọc":""}.</p>`);
 }
 
+// Lần đầu CA xuất hiện: giờ + nơi (nhóm Telegram hoặc tài khoản X)
+function firstSeen(t){
+  const at = t.first_mention || t.first_seen;
+  if (!at) return "";
+  const src = t.first_group ? (t.first_group.startsWith("X · ") ? t.first_group.slice(4) + " (X)" : t.first_group) : "";
+  return `<span class="seen">Xuất hiện ${fmtTime(at)}${src ? " · " + esc(src) : ""}</span>`;
+}
 function renderTokens(onlyX){
-  const list = onlyX ? DATA.tokens.filter(t => t.x) : DATA.tokens;
+  const xcas = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || []));
+  const list = onlyX ? DATA.tokens.filter(t => t.x || xcas.has(t.address)) : DATA.tokens;
   if (!list.length) return `<p class="empty">${onlyX ? "Chưa có CA nào được nhắc trên các tài khoản X bạn theo dõi." : "Chưa thấy contract nào có giao dịch trên DexScreener."}</p>`;
   const rows = list.slice(0, state.tokLimit).map((t,i) => {
     const ch = t.change_since_first;
@@ -419,7 +428,7 @@ function renderTokens(onlyX){
       : `<span class="${cls}">${pct(ch)}</span><span class="small">so với ${fmtPrice(t.base_price)} lúc ${fmtTime(t.base_at)}</span>`;
     const isNew = t.age_hours != null && t.age_hours < 72;
     return `<tr>
-      <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span></td>
+      <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span>${firstSeen(t)}</td>
       <td class="num" data-l="Giá hiện tại">${fmtPrice(t.price_usd)}<span class="small">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
       <td class="num" data-l="Thay đổi">${chg}</td>
       <td class="num" data-l="Vol 24h">${fmtUsd(t.volume_24h)}</td>
@@ -485,9 +494,11 @@ function renderXTrend(){
     }).join("");
 }
 
+const LINK_SKIP = /^(?:https?:\/\/)?(?:[\w-]+\.)*(?:solscan\.io|dexscreener\.com|bscscan\.com|etherscan\.io|basescan\.org|arbiscan\.io|tronscan\.org|tonviewer\.com|pump\.fun|gmgn\.ai|birdeye\.so|dextools\.io)(?:[\/:?#]|$)/i;
+const goodLinks = () => DATA.links.filter(l => !LINK_SKIP.test(l.url));
 function renderLinks(){
-  if (!DATA.links.length) return `<p class="empty">Chưa có link nào.</p>`;
-  return DATA.links.map(l => `<div class="card"><a class="u" href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>
+  if (!goodLinks().length) return `<p class="empty">Chưa có link nào.</p>`;
+  return goodLinks().map(l => `<div class="card"><a class="u" href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>
     <div class="meta"><span>${esc(l.group)} · ${fmtTime(l.date)}</span><a href="${safeUrl(l.msg)}" target="_blank" rel="noopener">tin gốc</a></div>
     <div class="ctx">${esc(l.context)}</div></div>`).join("");
 }
