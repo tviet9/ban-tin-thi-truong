@@ -379,8 +379,22 @@ function itemsOf(n){  // [mốc thời gian] của từng mục
   return allEvents().filter(e => inNav(e, n)).map(evTs);
 }
 const newCount = (stamps, after) => stamps.filter(x => x > after).length;
-// số đỏ trên nút lọc: tin mới trong nhóm đó kể từ lần trước mở mục; ngày cũ thì hiện tổng như trước
-const chipNum = (id, stamps) => isLive() ? (k => k ? `<b class="newc" title="${k} tin mới">${k > 99 ? "99+" : k}</b>` : "")(newCount(stamps, since(id))) : ` · ${stamps.length}`;
+// Mục có nút lọc: đọc theo từng nút. Mỗi tin thuộc một hoặc nhiều nút; tin coi là đã đọc khi bạn đã mở
+// một nút chứa nó (hoặc bấm "Tất cả") sau lúc tin đến. Số của mục trên menu = số tin chưa đọc còn lại.
+const CHIPSEC = {
+  watch:   () => (DATA.watch||[]).map(m => ({t: ts(m.date), keys: m.tags.concat(m.tags.includes("nguoi") && (m.sender || m.username) ? ["p:" + (m.sender || m.username)] : [])})),
+  flow:    () => (DATA.flow||[]).map(m => ({t: ts(m.date), keys: [m.group]})),
+  x_posts: () => (DATA.x_posts||[]).map(p => ({t: ts(p.date), keys: [p.group]})),
+  x_trend: () => (DATA.x_trend||[]).map(x => ({t: Math.max(0, ...postsFor(x.term).map(p => ts(p.date))), keys: [x.kind]})),
+};
+const CHIPSTATE = {watch: "watch", flow: "fgroup", x_posts: "xacc", x_trend: "tkind"};
+const readAt = (sec, it) => Math.max(SEEN[sec] || 0, SEEN[sec + ":all"] || 0, ...it.keys.map(k => SEEN[sec + ":" + k] || 0));
+const unreadIn = (sec, key) => CHIPSEC[sec]().filter(it => (key === "all" || it.keys.includes(key)) && it.t > readAt(sec, it)).length;
+function markChip(sec, key){ if (isLive()) { SEEN[sec + ":" + key] = Date.now(); saveSeen(); } }
+let allClicked = false;  // "Tất cả" chỉ tính là đã đọc hết khi bạn bấm hẳn vào nó, không phải lúc vừa mở mục
+const badge = k => k ? `<b class="newc" title="${k} tin chưa đọc">${k > 99 ? "99+" : k}</b>` : "";
+const chipNum = (sec, key) => isLive() ? badge(unreadIn(sec, key))
+  : ` · ${CHIPSEC[sec]().filter(it => key === "all" || it.keys.includes(key)).length}`;
 function srcErrors(){
   const h = (DATA.sources||{}).health || {};
   return Object.entries(h).filter(([k, v]) => !k.startsWith("svc:") && v.err_at && (!v.ok_at || v.err_at > v.ok_at)).length;
@@ -388,7 +402,7 @@ function srcErrors(){
 function navNum(n){
   if (n.id === "settings") { const e = srcErrors(); return e ? `<span class="c new" title="${e} nguồn đang lỗi">${e}</span>` : `<span class="c"></span>`; }
   if (!isLive()) return `<span class="c">${count(n)}</span>`;
-  const k = state.nav === n.id ? 0 : newCount(itemsOf(n), since(n.id));
+  const k = CHIPSEC[n.id] ? unreadIn(n.id, "all") : state.nav === n.id ? 0 : newCount(itemsOf(n), since(n.id));
   return k ? `<span class="c new" title="${k} tin mới từ lần cuối bạn xem">${k}</span>` : `<span class="c"></span>`;
 }
 
@@ -420,24 +434,24 @@ function bar(){
     const acc = [...new Set((DATA.x_posts||[]).map(p => p.group))];
     const ps = DATA.x_posts || [];
     h += `<div class="chips">` + [["all","Tất cả"], ...acc.map(a => [a, a.replace(/^X · /, "")])].map(([k,l]) =>
-      `<button class="chip" data-xacc="${esc(k)}" aria-pressed="${state.xacc===k}">${esc(l)}${chipNum("x_posts", (k==="all" ? ps : ps.filter(p => p.group === k)).map(p => ts(p.date)))}</button>`).join("") + `</div>`;
+      `<button class="chip" data-xacc="${esc(k)}" aria-pressed="${state.xacc===k}">${esc(l)}${chipNum("x_posts", k)}</button>`).join("") + `</div>`;
   } else if (n.id === "x_trend") {
     // lọc nhanh theo loại: Mã ($), Hashtag (#), Tài khoản (@), Từ khoá
     const tr = DATA.x_trend || [];
     const kinds = [...new Set(tr.map(t => t.kind))];
     h += `<div class="chips">` + [["all","Tất cả"], ...kinds.map(k => [k, k])].map(([k,l]) =>
-      `<button class="chip" data-tkind="${esc(k)}" aria-pressed="${state.tkind===k}">${esc(l)}${chipNum("x_trend", (k==="all" ? tr : tr.filter(t => t.kind === k)).map(t => Math.max(0, ...postsFor(t.term).map(p => ts(p.date)))))}</button>`).join("") + `</div>`;
+      `<button class="chip" data-tkind="${esc(k)}" aria-pressed="${state.tkind===k}">${esc(l)}${chipNum("x_trend", k)}</button>`).join("") + `</div>`;
   } else if (n.id === "flow") {
     const fl = DATA.flow || [];
     const grs = [...new Set(fl.map(m => m.group))];
     h += `<div class="chips">` + [["all","Tất cả"], ...grs.map(g => [g, g])].map(([k,l]) =>
-      `<button class="chip" data-fgroup="${esc(k)}" aria-pressed="${state.fgroup===k}">${esc(l)}${chipNum("flow", (k==="all" ? fl : fl.filter(m => m.group === k)).map(m => ts(m.date)))}</button>`).join("") + `</div>`;
+      `<button class="chip" data-fgroup="${esc(k)}" aria-pressed="${state.fgroup===k}">${esc(l)}${chipNum("flow", k)}</button>`).join("") + `</div>`;
   } else if (n.id === "watch") {
     const w = DATA.watch || [];
     const opts = [["all","Tất cả"], ...Object.entries(DATA.watch_labels || {})];
     const people = [...new Set(w.filter(m => m.tags.includes("nguoi")).map(m => m.sender || m.username))].filter(Boolean);
-    h += `<div class="chips">` + opts.map(([k,l]) => `<button class="chip" data-watch="${k}" aria-pressed="${state.watch===k}">${esc(l)}${chipNum("watch", (k==="all" ? w : w.filter(m => m.tags.includes(k))).map(m => ts(m.date)))}</button>`).join("")
-      + people.map(p => `<button class="chip" data-watch="p:${esc(p)}" aria-pressed="${state.watch==="p:"+p}">${esc(p)}${chipNum("watch", w.filter(m => (m.sender || m.username) === p).map(m => ts(m.date)))}</button>`).join("") + `</div>`;
+    h += `<div class="chips">` + opts.map(([k,l]) => `<button class="chip" data-watch="${k}" aria-pressed="${state.watch===k}">${esc(l)}${chipNum("watch", k)}</button>`).join("")
+      + people.map(p => `<button class="chip" data-watch="p:${esc(p)}" aria-pressed="${state.watch==="p:"+p}">${esc(p)}${chipNum("watch", "p:" + p)}</button>`).join("") + `</div>`;
   }
   $("#bar").innerHTML = h;
 }
@@ -798,7 +812,11 @@ function armFeed(n){
 }
 
 function render(){
-  markSeen(state.nav);
+  if (CHIPSEC[state.nav]) {  // mục có nút lọc: chỉ nút đang chọn được tính là đã đọc
+    const key = state[CHIPSTATE[state.nav]];
+    if (key !== "all" || allClicked) markChip(state.nav, key);
+    allClicked = false;
+  } else markSeen(state.nav);
   side(); bar();
   const n = cur();
   const html = viewHtml(n);
@@ -815,10 +833,10 @@ document.addEventListener("click", ev => {
   else if (b.dataset.mode) state.mode = b.dataset.mode;
   else if (b.dataset.imp) state.minImp = Number(b.dataset.imp);
   else if (b.dataset.tag) state.tag = b.dataset.tag;
-  else if (b.dataset.watch) state.watch = b.dataset.watch;
-  else if (b.dataset.xacc) state.xacc = b.dataset.xacc;
-  else if (b.dataset.tkind) state.tkind = b.dataset.tkind;
-  else if (b.dataset.fgroup) state.fgroup = b.dataset.fgroup;
+  else if (b.dataset.watch) { state.watch = b.dataset.watch; allClicked = b.dataset.watch === "all"; }
+  else if (b.dataset.xacc) { state.xacc = b.dataset.xacc; allClicked = b.dataset.xacc === "all"; }
+  else if (b.dataset.tkind) { state.tkind = b.dataset.tkind; allClicked = b.dataset.tkind === "all"; }
+  else if (b.dataset.fgroup) { state.fgroup = b.dataset.fgroup; allClicked = b.dataset.fgroup === "all"; }
   else if (b.dataset.tokmore) state.tokLimit += 100;
   else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
   else if (b.id === "refreshBtn") { refreshNow(b); return; }
