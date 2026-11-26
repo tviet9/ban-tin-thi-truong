@@ -866,5 +866,20 @@ document.addEventListener("click", ev => {
 window.addEventListener("hashchange", () => { const v = location.hash.slice(1); if (navIds.includes(v)) { state.nav = v; render(); } });
 
 applyTheme(THEME);
+// Tự làm mới số liệu khi trang đang mở: 3 phút một lần và ngay khi quay lại tab. Chỉ cập nhật menu, nút lọc,
+// số liệu góc trên (số chưa đọc, nguồn lỗi); nội dung đang đọc không bị nhảy, tin mới hiện khi bấm sang mục khác.
+async function pollFresh(){
+  if (document.hidden || !TODAY || !TODAY.api || DATA !== TODAY || TODAY.day !== vnToday()) return;
+  try {
+    const r = await fetch("api/day?day=" + TODAY.day, {cache: "no-store"});
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.generated_at === TODAY.generated_at && JSON.stringify(d.sources?.health) === JSON.stringify(TODAY.sources?.health)) return;
+    Object.assign(TODAY, d);
+    header(); side(); bar();
+  } catch(e) {}
+}
+setInterval(pollFresh, 3 * 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollFresh(); });
 if (DATA) { header(); render(); } else { $("#view").innerHTML = `<p class="empty">Chưa có dữ liệu.</p>`; }
 </script>
