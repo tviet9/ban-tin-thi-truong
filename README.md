@@ -1,4 +1,4 @@
-# Bản tin Thị trường
+# Daily Market
 
 Tổng hợp tin từ các nhóm Telegram và trang báo (RSS), lọc theo chủ đề (Kinh tế trong nước, ngoài nước,
 Chứng khoán, Crypto), tóm tắt bằng AI miễn phí (Groq, dự phòng Gemini), chấm mức quan trọng 1–5,
