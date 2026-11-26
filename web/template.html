@@ -35,14 +35,14 @@ body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);margin:0;-
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
 .gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 header.top{background:var(--surface);border-bottom:1px solid var(--line)}
-header.top .in{padding-block:16px 12px;display:flex;flex-wrap:wrap;gap:10px 28px;align-items:end;justify-content:space-between;max-width:1480px;margin:0 auto}
+header.top .in{padding-block:16px 12px;display:flex;flex-wrap:wrap;gap:10px 28px;align-items:end;justify-content:space-between;max-width:1260px;margin:0 auto}
 h1{font-size:1.5rem;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.022em;text-wrap:balance}
 .sub{color:var(--muted);font-size:.83rem;margin-top:4px}
 .stats{display:flex;gap:18px;flex-wrap:wrap}
 .stat{display:flex;flex-direction:column}
 .stat b{font:600 1.1rem var(--mono);font-variant-numeric:tabular-nums}
 .stat span{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.shell{display:grid;grid-template-columns:232px minmax(0,1fr);max-width:1480px;margin:0 auto;align-items:start}
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);max-width:1260px;margin:0 auto;align-items:start}
 nav.side{position:sticky;top:env(safe-area-inset-top,0px);max-height:100vh;max-height:100dvh;overflow-y:auto;padding:16px 10px 24px max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:2px}
 .navh{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 10px 4px;font-weight:600}
 button{font:inherit;color:inherit;cursor:pointer}
@@ -70,7 +70,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 #view{padding-block:16px 56px;display:flex;flex-direction:column;gap:12px}
 .overview{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
 .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 6px;font-weight:600}
-.overview p{margin:0;max-width:95ch}
+.overview p{margin:0;max-width:80ch}
 .event,.card{content-visibility:auto;contain-intrinsic-size:auto 160px} /* danh sách dài: chỉ vẽ phần đang thấy */
 .event{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px 12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px}
 .event.hot{box-shadow:inset 3px 0 0 var(--c)}
