@@ -1,7 +1,7 @@
-name: Cập nhật mỗi 30 phút
+name: Cập nhật mỗi 20 phút
 on:
   schedule:
-    - cron: "22,52 * * * *"  # dự phòng: lịch chính do Cloudflare gọi lúc phút 07 và 37
+    - cron: "17,37,57 * * * *"  # dự phòng: lịch chính do Cloudflare gọi lúc phút 07, 27, 47
   workflow_dispatch:
     inputs:
       backfill_from:

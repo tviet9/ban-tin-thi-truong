@@ -77,7 +77,7 @@ async function buildData(env, day) {
     topics: TOPICS, sections: SECTIONS, tags: TAGS,
     groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url), src.x.map(x => "X · " + (x.title || "X")), src.youtube.map(y => "YouTube · " + (y.title || y.url))),
     stats: { total: stats.total || 0, kept: stats.kept || 0 },
-    digest: digest || { overview: "Chưa có dữ liệu cho ngày này. Hệ thống cập nhật mỗi 30 phút.", events: [] },
+    digest: digest || { overview: "Chưa có dữ liệu cho ngày này. Hệ thống cập nhật mỗi 20 phút.", events: [] },
     hours, tokens,
     links: lk.results.map(r => parse(r.data, null)).filter(Boolean),
     watch_labels: WATCH_LABELS,
@@ -102,7 +102,7 @@ function badWrite(req) {
   return null;
 }
 
-// Gọi workflow cập nhật trên GitHub (dùng cho nút "Cập nhật ngay" và lịch chạy mỗi 30 phút của Cloudflare)
+// Gọi workflow cập nhật trên GitHub (dùng cho nút "Cập nhật ngay" và lịch chạy mỗi 20 phút của Cloudflare)
 const dispatch = env => fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/hourly.yml/dispatches`, {
   method: "POST",
   headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: "application/vnd.github+json",
@@ -151,7 +151,7 @@ async function handleSources(req, env) {
 }
 
 export default {
-  // Lịch chạy Cloudflare (phút 07 và 37 mỗi giờ): đúng giờ hơn lịch của GitHub
+  // Lịch chạy Cloudflare (phút 07, 27, 47 mỗi giờ): đúng giờ hơn lịch của GitHub
   async scheduled(event, env) {
     const r = env.GH_TOKEN && env.GH_REPO ? await dispatch(env) : { status: 0 };
     // Ghi lại lần chạy lịch gần nhất để kiểm tra (xem ở /api/status)
