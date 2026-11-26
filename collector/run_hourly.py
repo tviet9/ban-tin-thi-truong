@@ -1,4 +1,4 @@
-"""Chạy mỗi 30 phút trên GitHub Actions: lấy tin mới -> lọc -> tra token -> tóm tắt -> ghi D1.
+"""Chạy mỗi 20 phút trên GitHub Actions: lấy tin mới -> lọc -> tra token -> tóm tắt -> ghi D1.
 
 Biến môi trường: TG_API_ID, TG_API_HASH, TG_SESSION, GROQ_API_KEY, (GEMINI_API_KEY),
 CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN. Đặt HIDE_NAMES=1 để log không lộ tên nhóm.
@@ -28,7 +28,7 @@ from filters import filter_messages  # noqa: E402
 
 VN = timezone(timedelta(hours=7))
 KEEP_DAYS = 365
-MERGE_EVERY_MIN = 55  # AI gộp lại bản tổng hợp ngày tối đa mỗi giờ một lần (lượt 30 phút xen giữa chỉ nối thêm)
+MERGE_EVERY_MIN = 55  # AI gộp lại bản tổng hợp ngày tối đa mỗi giờ một lần (lượt 20 phút xen giữa chỉ nối thêm)
 
 
 def log(msg):
@@ -120,8 +120,8 @@ def main():
         reset_today(db)
     last = db.get_state("last_run")
     if os.environ.get("TRIGGER") == "schedule" and last and \
-            datetime.now(timezone.utc) - datetime.fromisoformat(last) < timedelta(minutes=25):
-        log("[bỏ qua] lịch dự phòng: đã có lượt chạy trong 25 phút qua")
+            datetime.now(timezone.utc) - datetime.fromisoformat(last) < timedelta(minutes=15):
+        log("[bỏ qua] lịch dự phòng: đã có lượt chạy trong 15 phút qua")
         return
     src = load_sources(db)
     now = datetime.now(timezone.utc)

@@ -9,7 +9,7 @@ globs = ["**/*.html"]
 fallthrough = true
 
 [triggers]
-crons = ["7,37 * * * *"]  # mỗi 30 phút (phút 07 và 37): gọi lượt cập nhật trên GitHub
+crons = ["7,27,47 * * * *"]  # mỗi 20 phút (phút 07, 27, 47): gọi lượt cập nhật trên GitHub
 
 [vars]
 GH_REPO = "__GH_REPO__"  # workflow Deploy tự điền (repo chứa workflow cập nhật)
