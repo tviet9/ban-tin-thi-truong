@@ -84,6 +84,8 @@ WATCH = {
 WATCH_SENDERS = []  # thêm trên web; danh sách ở đây được gộp thêm
 
 # Mục Link: bỏ các trang tra cứu blockchain / biểu đồ giá (CA đã có ở bảng token)
+# Ngoài danh sách dưới: bỏ mọi tên miền đuôi .live / .scan và tên miền kiểu "...scan.xxx" (polygonscan.com, suiscan.xyz...)
+LINK_SKIP_HOST_RE = r"[\w-]+\.(?:live|scan)|[\w-]*scan(?:\.[\w-]+)+"
 LINK_SKIP_DOMAINS = ["solscan.io", "dexscreener.com", "bscscan.com", "etherscan.io", "basescan.org",
                      "arbiscan.io", "tronscan.org", "tonviewer.com", "pump.fun", "gmgn.ai", "birdeye.so", "dextools.io",
                      "geckoterminal.com", "fomo.family", "axiom.trade", "trojan.com", "basedbot.app", "defined.fi"]

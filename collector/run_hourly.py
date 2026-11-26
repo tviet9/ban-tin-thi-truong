@@ -23,7 +23,7 @@ import web_fetch  # noqa: E402
 import x_fetch  # noqa: E402
 from x_trend import trending  # noqa: E402
 from d1 import D1  # noqa: E402
-from config import LINK_SKIP_DOMAINS  # noqa: E402
+from config import LINK_SKIP_DOMAINS, LINK_SKIP_HOST_RE  # noqa: E402
 from filters import filter_messages  # noqa: E402
 
 VN = timezone(timedelta(hours=7))
@@ -313,7 +313,8 @@ def main():
         "contracts": m["contracts"], "link": m["link"]}, ensure_ascii=False)] for m in kept if m["watch"]],
         conflict=["uid"])
     link_rows = {}
-    skip = re.compile(r"^(?:https?://)?(?:[\w-]+\.)*(?:" + "|".join(map(re.escape, LINK_SKIP_DOMAINS)) + r")(?:[/:?#]|$)", re.I)
+    skip = re.compile(r"^(?:https?://)?(?:[\w-]+\.)*(?:" + "|".join(map(re.escape, LINK_SKIP_DOMAINS)) + "|" + LINK_SKIP_HOST_RE
+                      + r")(?:[/:?#]|$)", re.I)
     for m in kept:
         for u in m["links"]:
             if skip.match(u):

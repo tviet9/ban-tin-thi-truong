@@ -523,7 +523,9 @@ function renderXTrend(){
 }
 
 const LINK_SKIP = /^(?:https?:\/\/)?(?:[\w-]+\.)*(?:solscan\.io|dexscreener\.com|bscscan\.com|etherscan\.io|basescan\.org|arbiscan\.io|tronscan\.org|tonviewer\.com|pump\.fun|gmgn\.ai|birdeye\.so|dextools\.io|geckoterminal\.com|fomo\.family|axiom\.trade|trojan\.com|basedbot\.app|defined\.fi)(?:[\/:?#]|$)/i;
-const goodLinks = () => DATA.links.filter(l => !LINK_SKIP.test(l.url));
+// thêm: mọi tên miền đuôi .live / .scan và kiểu "...scan.xxx" (polygonscan.com, suiscan.xyz...)
+const LINK_SKIP_HOST = /^(?:https?:\/\/)?(?:[\w-]+\.)*(?:[\w-]+\.(?:live|scan)|[\w-]*scan(?:\.[\w-]+)+)(?:[\/:?#]|$)/i;
+const goodLinks = () => DATA.links.filter(l => !LINK_SKIP.test(l.url) && !LINK_SKIP_HOST.test(l.url));
 function renderLinks(){
   if (!goodLinks().length) return `<p class="empty">Chưa có link nào.</p>`;
   return goodLinks().map(l => `<div class="card"><a class="u" href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>
