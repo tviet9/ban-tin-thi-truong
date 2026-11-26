@@ -51,7 +51,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .nav .c{font:500 .75rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .nav .c.new{color:#fff;background:var(--live);border-radius:999px;min-width:20px;padding:1px 6px;text-align:center;font-weight:700}
 .newc{color:var(--live);font-weight:700;font-style:normal}
-.chip[aria-pressed="true"] .newc{color:inherit}
+/* nút lọc: số tin mới là chấm thông báo nhỏ nổi ở góc trên bên phải */
+.chip{position:relative}
+.chip:has(.newc){margin-right:9px}
+.chip .newc{position:absolute;top:-8px;right:-11px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--live);color:#fff;
+  font:700 .62rem/16px var(--mono);text-align:center;box-shadow:0 0 0 2px var(--bg);pointer-events:none}
+.chips{padding-top:4px}
 .stat .newc{font:700 .72rem var(--mono);margin-left:5px;vertical-align:super}
 
 .nav[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
@@ -375,7 +380,7 @@ function itemsOf(n){  // [mốc thời gian] của từng mục
 }
 const newCount = (stamps, after) => stamps.filter(x => x > after).length;
 // số đỏ trên nút lọc: tin mới trong nhóm đó kể từ lần trước mở mục; ngày cũ thì hiện tổng như trước
-const chipNum = (id, stamps) => isLive() ? (k => k ? ` <b class="newc">${k}</b>` : "")(newCount(stamps, since(id))) : ` · ${stamps.length}`;
+const chipNum = (id, stamps) => isLive() ? (k => k ? `<b class="newc" title="${k} tin mới">${k > 99 ? "99+" : k}</b>` : "")(newCount(stamps, since(id))) : ` · ${stamps.length}`;
 function srcErrors(){
   const h = (DATA.sources||{}).health || {};
   return Object.entries(h).filter(([k, v]) => !k.startsWith("svc:") && v.err_at && (!v.ok_at || v.err_at > v.ok_at)).length;
