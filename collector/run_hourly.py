@@ -16,6 +16,7 @@ import dexscreener  # noqa: E402
 import summarize as sm  # noqa: E402
 import telegram_fetch  # noqa: E402
 import web_fetch  # noqa: E402
+import x_fetch  # noqa: E402
 from x_trend import trending  # noqa: E402
 from d1 import D1  # noqa: E402
 from filters import filter_messages  # noqa: E402
@@ -142,12 +143,8 @@ def main():
         since = backfill_since() or (datetime.fromisoformat(last_web) - timedelta(hours=2) if last_web else start_of_today())
         wmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": r.get("title")} for r in src["website"]], since)
         if src["x"]:
-            xmsgs, _ = web_fetch.fetch([{"url": r["value"], "title": "X · " + (r.get("title") or "X")} for r in src["x"]], since)
-            for m in xmsgs:
-                m["source"] = "x"
-                # feed gộp (List X): ghi theo tác giả từng bài để lọc và tính trending theo tài khoản
-                if m.get("sender"):
-                    m["group"] = "X · @" + m["sender"].lstrip("@")
+            xmsgs = x_fetch.fetch([r["value"] for r in src["x"]], since, log)
+            log(f"[x] đọc {len(xmsgs)} bài")
             wmsgs += xmsgs
         web_seen = db.get_state("web_seen", [])
         msgs += [m for m in wmsgs if m["uid"] not in set(web_seen)]

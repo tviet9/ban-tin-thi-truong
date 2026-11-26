@@ -81,6 +81,16 @@ def test_rss():
     print("rss OK")
 
 
+def test_x_tidy():
+    import x_fetch
+    assert x_fetch.feed_path("list:123") == "i/lists/123" and x_fetch.feed_path("@cz") == "cz" and x_fetch.feed_path("https://a/b.xml") is None
+    m = x_fetch._tidy({"text": "RT by @elonmusk: Hello $DOGE. tóm tắt", "raw_title": "RT by @elonmusk: Hello $DOGE",
+                       "sender": "@SpaceX", "link": "https://nitter.kareem.one/SpaceX/status/9#m"})
+    assert m["group"] == "X · @elonmusk" and m["text"] == "Hello $DOGE" and m["link"] == "https://x.com/SpaceX/status/9", m
+    assert m["uid"].startswith("x-") and m["source"] == "x"
+    print("x tidy OK")
+
+
 def test_merge_keeps_dropped():
     import summarize as sm
     events = [{"topic": "crypto", "title": f"E{i}", "points": ["x" * 400], "importance": 1 + i % 5,
@@ -105,5 +115,6 @@ if __name__ == "__main__":
     test_filters()
     test_dex_parse()
     test_rss()
+    test_x_tidy()
     test_merge_keeps_dropped()
     test_dex_down()

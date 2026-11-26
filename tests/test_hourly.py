@@ -87,7 +87,7 @@ def main():
                                "CA 9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT", "Ăn sáng thôi"]):
             out.append({"uid": f"w-x{i}", "id": i, "group_id": "x", "group": sites[0]["title"], "sender": None,
                         "date": (base + timedelta(minutes=i)).isoformat(), "text": t, "urls": [],
-                        "link": f"https://x.com/elonmusk/status/{i}", "source": "web"})
+                        "link": f"https://nitter.example/elonmusk/status/{i}#m", "source": "web", "raw_title": t})
         return out, []
     run_hourly.web_fetch.fetch = fake_web
     run_hourly.main()

@@ -1,0 +1,34 @@
+name: Thêm nguồn tin
+# Thêm một nguồn vào web (giống ô "Thêm nguồn" trong Cài đặt nguồn). Nội dung nguồn hiện trong log công khai.
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "Loại: telegram | website | sender | x"
+        required: true
+      value:
+        description: "Giá trị (ví dụ list:123, @ten, -100..., https://...)"
+        required: true
+      title:
+        description: "Tên hiển thị (tuỳ chọn)"
+        default: ""
+      site:
+        description: "Địa chỉ web"
+        default: "https://tin.trackmarket.workers.dev"
+permissions:
+  contents: read
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gửi tới web
+        env:
+          KIND: ${{ inputs.kind }}
+          VALUE: ${{ inputs.value }}
+          TITLE: ${{ inputs.title }}
+          SITE: ${{ inputs.site }}
+        run: |
+          body=$(jq -n --arg k "$KIND" --arg v "$VALUE" --arg t "$TITLE" '{kind:$k,value:$v,title:$t}')
+          code=$(curl -s -o out.json -w '%{http_code}' -X POST -H 'content-type: application/json' -d "$body" "$SITE/api/sources")
+          echo "HTTP $code"; jq -c '{error: .error, x: .sources.x}' out.json || cat out.json
+          test "$code" = 200

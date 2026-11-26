@@ -117,7 +117,7 @@ def fetch(websites, since, site_offset=100):
                 "uid": uid, "id": uid, "group_id": f"web:{w['url']}", "group": name,
                 "date": (it["date"] or datetime.now(timezone.utc)).isoformat(),
                 "sender": it["author"] or None, "text": f"{it['title']}. {it['summary']}".strip(),
-                "urls": [it["link"]] if it["link"] else [], "link": it["link"] or url, "source": "web",
+                "urls": [it["link"]] if it["link"] else [], "link": it["link"] or url, "source": "web", "raw_title": it["title"],
             })
             n += 1
         print(f"[web] {_n(name)}: {n} bài")

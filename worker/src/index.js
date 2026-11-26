@@ -123,8 +123,7 @@ async function handleSources(req, env) {
   if (!["telegram", "website", "sender", "x"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
   if (kind === "telegram" && !/^(-100\d{6,}|@[A-Za-z0-9_]{4,})$/.test(value)) return json({ error: "ID nhóm phải dạng -100... hoặc @tennhom" }, 400);
   if (kind === "website" && !/^https?:\/\/[^\s]+$/.test(value)) return json({ error: "Link trang web phải bắt đầu bằng http(s)://" }, 400);
-  if (kind === "x" && !/^https?:\/\/[^\s]+$/.test(value)) return json({ error: "Dán link RSS của tài khoản X (tạo ở rss.app), bắt đầu bằng https://" }, 400);
-  if (kind === "x" && /^https?:\/\/(www\.)?(x|twitter)\.com\//i.test(value)) return json({ error: "Link x.com chưa đọc được trực tiếp. Tạo link RSS cho tài khoản này ở rss.app rồi dán link RSS." }, 400);
+  if (kind === "x" && !/^(list:\d+|@[A-Za-z0-9_]{1,15}|https?:\/\/\S+)$/.test(value)) return json({ error: "Nguồn X phải là link List (x.com/i/lists/...), @tài_khoản hoặc link RSS" }, 400);
   if (kind === "sender" && !/^[A-Za-z0-9_]{3,}$/.test(value)) return json({ error: "Username chỉ gồm chữ, số, dấu _" }, 400);
   if (req.method === "POST") {
     await db.prepare("INSERT INTO sources (kind, value, title, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(kind, value) DO UPDATE SET title = excluded.title")

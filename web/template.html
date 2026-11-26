@@ -448,7 +448,7 @@ function renderWatch(){
   }).join("");
 }
 
-const X_HINT = `<p class="note">Thêm tài khoản X ở <a href="#settings">Cài đặt nguồn</a> (loại "Tài khoản X", dán link RSS tạo ở rss.app).</p>`;
+const X_HINT = `<p class="note">Thêm List X ở <a href="#settings">Cài đặt nguồn</a> (loại "X: List hoặc tài khoản").</p>`;
 function renderXPosts(){
   const ps = (DATA.x_posts||[]).filter(p => state.xacc === "all" || p.group === state.xacc);
   if (!ps.length) return X_HINT + `<p class="empty">Chưa có bài đăng X nào trong ngày này.</p>`;
@@ -496,7 +496,7 @@ const KINDS = {
   telegram: {label:"Nhóm Telegram", ph:"https://web.telegram.org/a/#-100… hoặc @tennhom"},
   website: {label:"Trang web / báo", ph:"https://vnexpress.net/rss/kinh-doanh.rss…"},
   sender: {label:"Người theo dõi", ph:"@username…"},
-  x: {label:"Tài khoản X (link RSS)", ph:"https://rss.app/feeds/….xml"},
+  x: {label:"X: List hoặc tài khoản", ph:"https://x.com/i/lists/… hoặc @tên…"},
 };
 function parseTelegram(v){
   v = v.trim();
@@ -522,7 +522,7 @@ function renderSettings(){
     </form><div class="msg" id="f-msg" role="status"></div></section>`
     + block("Nhóm Telegram", tg, "Chưa có nhóm nào.")
     + block("Trang web / báo", web, "Chưa có trang nào. Thêm link RSS của báo để lấy tin kinh tế, chứng khoán.")
-    + block("Tài khoản X", xs, "Chưa có tài khoản nào. X không cho đọc trực tiếp: vào rss.app → Twitter/X Feed → dán link x.com/tên_tài_khoản → chép link RSS nhận được → chọn loại \"Tài khoản X\" ở trên, dán link RSS, tên hiển thị ghi @tên_tài_khoản.")
+    + block("Tài khoản X", xs, "Chưa có nguồn X. Nên dán link một List X (x.com/i/lists/…) chứa các tài khoản cần theo dõi: đọc một List ít bị chặn hơn đọc từng tài khoản.")
     + block("Người theo dõi", ppl, "Chưa có ai.");
 }
 async function api(method, body){
@@ -543,8 +543,11 @@ document.addEventListener("submit", async ev => {
   if (kind === "telegram") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100… hoặc @tennhom."; return; } }
   if (kind === "website" && !/^https?:\/\//.test(value)) value = "https://" + value;
   if (kind === "sender") value = value.replace(/^@/, "");
-  if (kind === "x" && /^(https?:\/\/)?(www\.)?(x|twitter)\.com\//i.test(value)) { msg.className = "msg err"; msg.textContent = "Link x.com chưa đọc được trực tiếp. Tạo link RSS cho tài khoản này ở rss.app rồi dán link RSS."; return; }
-  if (kind === "x" && !/^https?:\/\//.test(value)) value = "https://" + value;
+  if (kind === "x") {  // nhận link List, link tài khoản, @tên hoặc link RSS
+    const list = value.match(/(?:x|twitter)\.com\/i\/lists\/(\d+)/i), acc = value.match(/^(?:https?:\/\/)?(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})\/?$/i);
+    value = list ? "list:" + list[1] : acc ? "@" + acc[1] : /^@?[A-Za-z0-9_]{1,15}$/.test(value) ? "@" + value.replace(/^@/, "") : value;
+    if (!/^(list:\d+|@\w+|https?:\/\/)/.test(value)) { msg.className = "msg err"; msg.textContent = "Dán link List (x.com/i/lists/…), link tài khoản x.com/tên hoặc @tên."; return; }
+  }
   try { const j = await api("POST", {kind, value, title}); DATA.sources = j.sources; render(); const m = $("#f-msg"); m.className = "msg ok"; m.textContent = "Đã thêm. Có hiệu lực từ lần cập nhật kế tiếp."; }
   catch(e) { msg.className = "msg err"; msg.textContent = "Chưa thêm được: " + e.message; }
 });
