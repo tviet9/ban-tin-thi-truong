@@ -115,6 +115,8 @@ td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:now
 tr:last-child td{border-bottom:0}
 .sym{font-weight:700;overflow-wrap:anywhere}
 .small{font-size:.72rem;color:var(--muted);font-family:var(--sans);display:block;margin-top:2px;white-space:normal}
+td.who{max-width:150px}
+.whoname{display:block;font-weight:600;font-size:.8rem;overflow-wrap:anywhere}
 .seen{display:block;margin-top:3px;font-size:.72rem;color:var(--accent);font-weight:500;white-space:normal}
 .chain{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .up{color:var(--up)} .down{color:var(--down)}
@@ -414,12 +416,20 @@ function renderNews(n){
 function firstSeen(t){
   const at = t.first_mention || t.first_seen;
   if (!at) return "";
-  const src = t.first_group ? (t.first_group.startsWith("X · ") ? t.first_group.slice(4) + " (X)" : t.first_group) : "";
-  return `<span class="seen">Xuất hiện ${fmtTime(at)}${src ? " · " + esc(src) : ""}</span>`;
+  return `<span class="seen">Xuất hiện ${fmtTime(at)}</span>`;
+}
+// Ai gửi CA đầu tiên: tài khoản X (@tên) hoặc người gửi + nhóm Telegram
+function firstWho(t){
+  const g = t.first_group || "", isX = g.startsWith("X · ");
+  const who = isX ? g.slice(4) : (t.first_sender || "");
+  if (!who && !g) return `<span class="small">–</span>`;
+  return `<span class="whoname">${esc(who || "Không rõ tên")}</span><span class="small">${isX ? "X" : "Telegram · " + esc(g)}</span>`;
 }
 function renderTokens(onlyX){
   const xcas = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || []));
-  const list = onlyX ? DATA.tokens.filter(t => t.x || xcas.has(t.address)) : DATA.tokens;
+  // Mới xuất hiện lần đầu ở trên cùng; token chưa rõ thời gian xuống cuối
+  const firstAt = t => Date.parse(t.first_mention || t.first_seen || "") || 0;
+  const list = (onlyX ? DATA.tokens.filter(t => t.x || xcas.has(t.address)) : DATA.tokens.slice()).sort((a, b) => firstAt(b) - firstAt(a));
   if (!list.length) return `<p class="empty">${onlyX ? "Chưa có CA nào được nhắc trên các tài khoản X bạn theo dõi." : "Chưa thấy contract nào có giao dịch trên DexScreener."}</p>`;
   const rows = list.slice(0, state.tokLimit).map((t,i) => {
     const ch = t.change_since_first;
@@ -429,6 +439,7 @@ function renderTokens(onlyX){
     const isNew = t.age_hours != null && t.age_hours < 72;
     return `<tr>
       <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span>${firstSeen(t)}</td>
+      <td class="who" data-l="Gửi lần đầu">${firstWho(t)}</td>
       <td class="num" data-l="Giá hiện tại">${fmtPrice(t.price_usd)}<span class="small">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
       <td class="num" data-l="Thay đổi">${chg}</td>
       <td class="num" data-l="Vol 24h">${fmtUsd(t.volume_24h)}</td>
@@ -438,8 +449,8 @@ function renderTokens(onlyX){
       <td class="num" data-l="Nhắc">${t.mentions}<span class="small clamp2" title="${esc(t.groups.join(", "))}">${t.groups.map(esc).join(", ")}</span></td>
       <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
   }).join("");
-  return `<p class="note">Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
-  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
+  return `<p class="note">Xếp theo thời gian CA xuất hiện lần đầu, mới nhất ở trên. Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
+  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th>Gửi lần đầu</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
 }
 
 function renderWatch(){
