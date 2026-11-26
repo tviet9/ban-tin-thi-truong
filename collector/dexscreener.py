@@ -5,7 +5,8 @@ import urllib.request
 from datetime import datetime, timezone
 
 API = "https://api.dexscreener.com/latest/dex/tokens/"
-BATCH = 30  # API nhận tối đa 30 địa chỉ mỗi lần
+# Tra TỪNG địa chỉ: API trả tối đa 30 cặp cho cả lần hỏi, hỏi chung nhiều CA thì token lớn (nhiều cặp)
+# chiếm hết chỗ và CA mới bị coi là "không có trên DexScreener" (lỗi CA 12:19 ngày 26/11).
 
 
 def _get(url, retries=3):
@@ -67,17 +68,18 @@ def summarize_pairs(address, pairs):
 def lookup(addresses):
     """Trả về dict address -> thông tin (CA không có cặp giao dịch thì không có trong kết quả).
     Trả về None nếu không gọi được DexScreener."""
-    out = {}
-    addresses = list(dict.fromkeys(addresses))
-    for i in range(0, len(addresses), BATCH):
-        chunk = addresses[i:i + BATCH]
-        data = _get(API + ",".join(chunk))
+    out, fails, asked = {}, 0, 0
+    for addr in dict.fromkeys(addresses):
+        if asked:
+            time.sleep(0.25)  # giới hạn 300 request/phút
+        asked += 1
+        data = _get(API + addr, retries=2)
         if data is None:
-            return None
-        pairs = data.get("pairs") or []
-        for addr in chunk:
-            info = summarize_pairs(addr, pairs)
-            if info:
-                out[addr] = info
-        time.sleep(0.4)  # giới hạn 300 request/phút
-    return out
+            fails += 1
+            if fails >= 3 and not out:  # mất kết nối hẳn
+                return None
+            continue
+        info = summarize_pairs(addr, data.get("pairs") or [])
+        if info:
+            out[addr] = info
+    return None if asked and fails == asked else out
