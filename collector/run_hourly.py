@@ -177,6 +177,7 @@ def main():
             x["groups"].add(m["group"])
             if not x["first"] or m["date"] < x["first"]:
                 x["first"], x["first_group"] = m["date"], m["group"]
+                x["first_sender"] = m.get("sender_username") and "@" + m["sender_username"] or m.get("sender")
             if len(x["links"]) < 5:
                 x["links"].append(m["link"])
     tok_days = sorted({d for d, _ in mentions} | {today})
@@ -213,6 +214,7 @@ def main():
              "groups": sorted(set(prev.get("groups", [])) | (mm["groups"] if mm else set())),
              "first_seen": prev.get("first_seen") or (mm["first"] if mm else None),
              "first_group": prev.get("first_group") or (mm.get("first_group") if mm else None),
+             "first_sender": prev.get("first_sender") or (mm.get("first_sender") if mm else None),
              "msg_links": list(dict.fromkeys(prev.get("msg_links", []) + (mm["links"] if mm else [])))[:5]}
         k = known.get(key)
         if k and k.get("first_price") and t.get("price_usd"):
