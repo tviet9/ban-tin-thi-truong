@@ -513,7 +513,7 @@ function renderXTrend(){
       const ps = postsFor(t.term);
       const posts = ps.map(p => `<div class="srcmsg"><b>${esc(p.group.replace(/^X · /, ""))}</b> · ${fmtTime(p.date)} · <a href="${safeUrl(p.link)}" target="_blank" rel="noopener">mở trên X</a><br>${esc(p.text)}</div>`).join("");
       return `<article class="card trend-card">
-        <details${i < 1 ? " open" : ""}>
+        <details>
           <summary><span class="rank">${i+1}</span><span class="tterm" translate="no">${esc(t.term)}</span><span class="small">${esc(t.kind)}</span>
             <span class="tcount">${t.count} bài</span><span class="tbar" style="--w:${Math.max(6, Math.round(t.count / max * 100))}%"></span>
             <span class="small tacc">${t.accounts.map(a => esc(a.replace(/^X · /, ""))).join(", ")}</span></summary>
