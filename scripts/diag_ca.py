@@ -10,6 +10,13 @@ import dexscreener  # noqa: E402
 from d1 import D1  # noqa: E402
 from filters import extract_contracts  # noqa: E402
 
+if sys.argv[1] == "health":  # in trạng thái nguồn đang lỗi (che bớt ID/link vì log công khai)
+    h = json.loads((D1().query("SELECT value FROM state WHERE key='source_health'") or [{"value": "{}"}])[0]["value"])
+    for k, v in sorted(h.items()):
+        bad = v.get("err_at") and (not v.get("ok_at") or v["err_at"] > v["ok_at"])
+        kind, val = k.split(":", 1)
+        print(f"{'LỖI' if bad else 'ok '} {kind}:{val[:6]}…{val[-4:]} ok={v.get('ok_at')} lỗi={v.get('err_at')} {v.get('err') if bad else ''}")
+    sys.exit(0)
 t0, t1 = sys.argv[1], sys.argv[2]
 grp = (sys.argv[3] if len(sys.argv) > 3 else "").lower()
 db = D1()
