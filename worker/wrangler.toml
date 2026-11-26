@@ -1,4 +1,4 @@
-name = "ban-tin"
+name = "tin"  # địa chỉ web: tin.<tên-miền-phụ>.workers.dev
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 workers_dev = true

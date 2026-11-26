@@ -69,6 +69,9 @@ jobs:
         run: |
           cp ../web/template.html src/template.html
           wrangler deploy
+      - name: Xoá ứng dụng tên cũ (ban-tin) để không chạy lịch 2 lần
+        working-directory: worker
+        run: wrangler delete --name ban-tin --force || true
       - name: Gỡ mật khẩu cũ (nếu có)
         working-directory: worker
         run: wrangler secret delete SITE_PASSWORD --force || true
