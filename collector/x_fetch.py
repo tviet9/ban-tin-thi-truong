@@ -58,12 +58,17 @@ def fetch(values, since, log=print, health=None):
         if path is None:  # link RSS có sẵn
             got, _ = web_fetch.fetch([{"url": v, "title": "X"}], since, health=health, key_prefix="x:")
         else:
-            got, ok, last_err = [], False, None
-            for host in host_order(health):
+            got, ok, first_err = [], False, None
+            for i, host in enumerate(host_order(health)):
                 url = f"https://{host}/{path}/rss"
-                tmp = Health()
-                got, _ = web_fetch.fetch([{"url": url, "title": "X"}], since, health=tmp, key_prefix="", timeout=15)
-                e = tmp.d.get(url, {})
+                # máy đầu tiên (lấy được gần nhất): chờ lâu hơn và thử lại 1 lần nếu mất kết nối
+                for attempt in range(2 if i == 0 else 1):
+                    tmp = Health()
+                    got, _ = web_fetch.fetch([{"url": url, "title": "X"}], since, health=tmp, key_prefix="",
+                                             timeout=30 if i == 0 else 15, discover_feed=False)
+                    e = tmp.d.get(url, {})
+                    if "ok_at" in e or e.get("kind") != "network":
+                        break
                 if "ok_at" in e and any("whitelist" in (m.get("text") or "").lower() for m in got):
                     e = {"kind": "blocked"}  # máy trả RSS nhưng chỉ có thông báo "chưa cho phép trình đọc RSS"
                     got = []
@@ -74,14 +79,16 @@ def fetch(values, since, log=print, health=None):
                     if got:
                         break
                     continue  # máy trả RSS rỗng: thử máy khác cho chắc
-                last_err = e
+                if first_err is None:
+                    first_err = (host, e)
                 if health:
                     health.fail("svc:nitter:" + host, e.get("kind", "error"))
             if health:
                 if ok:
                     health.ok(key, len(got))
                 else:
-                    health.fail(key, (last_err or {}).get("kind", "error"), "mọi máy Nitter đều lỗi")
+                    h0, e0 = first_err or ("?", {})
+                    health.fail(key, e0.get("kind", "error"), f"máy chính {h0} lỗi, các máy dự phòng cũng lỗi")
             if not ok:
                 log("[x] không đọc được nguồn X lượt này (mọi máy Nitter đều lỗi)")
         out += [_tidy(m) for m in got]

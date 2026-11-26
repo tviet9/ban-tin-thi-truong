@@ -112,7 +112,7 @@ def parse_feed(body):
     return title, items
 
 
-def fetch(websites, since, site_offset=100, health=None, key_prefix="website:", timeout=25):
+def fetch(websites, since, site_offset=100, health=None, key_prefix="website:", timeout=25, discover_feed=True):
     """websites: [{"url": ..., "title": tuỳ chọn}]. Trả về (messages, sites_info).
     health: ghi trạng thái từng nguồn (khoá key_prefix + url), xem health.py."""
     messages, sites = [], []
@@ -122,7 +122,7 @@ def fetch(websites, since, site_offset=100, health=None, key_prefix="website:", 
         try:
             body, ctype = _get(url, timeout)
             if "html" in ctype.lower() and not _is_feed(body):
-                found = discover(url, body, timeout)
+                found = discover(url, body, timeout) if discover_feed else None
                 if not found:
                     print(f"[web] {_n(url)}: không tìm thấy RSS. Hãy nhập thẳng link RSS của trang.")
                     if health:
