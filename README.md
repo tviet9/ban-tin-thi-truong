@@ -2,12 +2,12 @@
 
 Tổng hợp tin từ các nhóm Telegram và trang báo (RSS), lọc theo chủ đề (Kinh tế trong nước, ngoài nước,
 Chứng khoán, Crypto), tóm tắt bằng AI miễn phí (Groq, dự phòng Gemini), chấm mức quan trọng 1–5,
-tra token (CA) trên DexScreener. Cập nhật mỗi giờ, lưu 1 năm.
+tra token (CA) trên DexScreener. Cập nhật mỗi 30 phút, lưu 1 năm.
 
 ## Cách chạy
 | Phần | Ở đâu | File |
 |---|---|---|
-| Lấy tin + tóm tắt mỗi giờ | GitHub Actions | `.github/workflows/hourly.yml` → `collector/run_hourly.py` |
+| Lấy tin + tóm tắt mỗi 30 phút | GitHub Actions | `.github/workflows/hourly.yml` → `collector/run_hourly.py` |
 | Web + database | Cloudflare Workers + D1 | `worker/` (tự đưa lên khi đẩy code, `.github/workflows/deploy.yml`) |
 | Lấy session Telegram | Google Colab | `scripts/build_notebook.py` tạo `demo_colab.ipynb` (chỉ đăng nhập) |
 

@@ -95,7 +95,30 @@ def main():
     # chạy lần 2: không có tin mới, token đã có giá lần đầu
     run_hourly.fetch_telegram = lambda g, m, c: _empty()
     run_hourly.main()
+    # lượt 3 (30 phút sau): có tin mới nhưng AI vừa gộp ngày -> chỉ nối sự kiện vào bản tổng hợp, không gọi AI gộp
     con = sqlite3.connect(DB_PATH)
+    before = len(json.loads(con.execute("SELECT data FROM digests").fetchone()[0])["events"])
+    merges = []
+    real_merge = run_hourly.sm.merge_events
+    run_hourly.sm.merge_events = lambda *a, **k: merges.append(1) or real_merge(*a, **k)
+
+    async def fake_tg3(groups, min_ids, creds):
+        ms = fake_messages()
+        for m in ms:
+            m["uid"] += "-n"
+        return ms, {"-1001": {"real_title": "Nhóm Crypto (thật)"}, "-1002": {"real_title": "x"}}
+    run_hourly.fetch_telegram = fake_tg3
+    run_hourly.main()
+    after = len(json.loads(con.execute("SELECT data FROM digests").fetchone()[0])["events"])
+    pend = json.loads(con.execute("SELECT value FROM state WHERE key='merge_pending'").fetchone()[0])
+    assert not merges and after > before and pend, (merges, before, after, pend)
+    # lượt 4: đã quá giờ gộp -> AI gộp lại ngày đang chờ dù không có tin mới
+    run_hourly.MERGE_EVERY_MIN = 0
+    run_hourly.fetch_telegram = lambda g, m, c: _empty()
+    run_hourly.main()
+    pend = json.loads(con.execute("SELECT value FROM state WHERE key='merge_pending'").fetchone()[0])
+    assert merges and not pend, (merges, pend)
+    run_hourly.sm.merge_events = real_merge
     counts = {t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
               for t in ("hours", "digests", "messages", "watch", "links", "tokens", "token_days", "stats")}
     print("rows:", counts)
