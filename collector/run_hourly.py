@@ -201,12 +201,54 @@ def main():
                 x["first_sender"] = m.get("sender_username") and "@" + m["sender_username"] or m.get("sender")
             if len(x["links"]) < 5:
                 x["links"].append(m["link"])
+    # CA chưa tra được ở lượt trước (DexScreener chưa ghi nhận token mới / lỗi mạng): tra lại trong 3 giờ
+    pending = {ca: p for ca, p in db.get_state("ca_pending", {}).items()
+               if now - datetime.fromisoformat(p["since"]) < timedelta(hours=3)}
+    for ca, p in pending.items():
+        x = mentions[(p["day"], ca)]
+        x["uids"] |= set(p["uids"])
+        x["groups"] |= set(p["groups"])
+        x["from_x"] = x.get("from_x") or p.get("from_x")
+        x["links"] = list(dict.fromkeys(p["links"] + x["links"]))[:5]
+        if not x["first"] or p["first"] < x["first"]:
+            x["first"], x["first_group"], x["first_sender"] = p["first"], p["first_group"], p["first_sender"]
+    if os.environ.get("RECHECK_CA") == "true":  # chạy tay: quét lại CA trong tin đã lưu hôm nay mà chưa có trong bảng
+        have = {r["address"] for r in db.query("SELECT address FROM token_days WHERE day = ?", [today])}
+        from filters import extract_contracts
+        n0 = len(mentions)
+        for r in db.query("SELECT uid, date, data FROM messages WHERE day = ? ORDER BY date", [today]):
+            d = json.loads(r["data"])
+            for ca in extract_contracts(d.get("text") or ""):
+                if ca in have:
+                    continue
+                x = mentions[(today, ca)]
+                x["uids"].add(r["uid"])
+                x["groups"].add(d.get("group") or "")
+                if not x["first"] or r["date"] < x["first"]:
+                    x["first"], x["first_group"] = r["date"], d.get("group")
+                    x["first_sender"] = d.get("username") and "@" + d["username"] or d.get("sender")
+                if len(x["links"]) < 5 and d.get("link"):
+                    x["links"].append(d["link"])
+        log(f"[token] quét lại tin hôm nay: {len(mentions) - n0} CA chưa có trong bảng")
     tok_days = sorted({d for d, _ in mentions} | {today})
     old = {(r["day"], r["address"]): json.loads(r["data"]) for r in db.query(
         f"SELECT day, address, data FROM token_days WHERE day IN ({','.join('?' * len(tok_days))})", tok_days)}
     pairs = list(dict.fromkeys(list(mentions) + [k for k in old if k[0] == today]))
     addrs_all = list(dict.fromkeys(ca for _, ca in pairs))
     dex = dexscreener.lookup(addrs_all) if addrs_all else {}
+    found = dex or {}
+    for (d, ca), x in mentions.items():  # CA chưa tra được: chờ lượt sau
+        if ca in found:
+            pending.pop(ca, None)
+        else:
+            p = pending.get(ca) or {"since": now.isoformat(), "day": d}
+            p.update({"uids": sorted(x["uids"])[-20:], "groups": sorted(g for g in x["groups"] if g), "links": x["links"][:5],
+                      "from_x": bool(x.get("from_x")), "first": x["first"], "first_group": x.get("first_group"),
+                      "first_sender": x.get("first_sender")})
+            pending[ca] = p
+    db.set_state("ca_pending", dict(list(pending.items())[-100:]))
+    if pending:
+        log(f"[token] {len(pending)} CA chưa có trên DexScreener, sẽ tra lại ở lượt sau (tối đa 3 giờ)")
     if dex is None:  # DexScreener lỗi mạng: giữ nguyên CA trong tin, lượt sau cập nhật giá
         log("[token] DexScreener không trả lời, bỏ qua cập nhật token lượt này")
         dex = {}

@@ -57,7 +57,9 @@ def main():
     sample_dex = json.loads((ROOT / "tests" / "sample_dex.json").read_text(encoding="utf-8"))
     for v in sample_dex.values():
         v["price_at"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
-    run_hourly.dexscreener.lookup = lambda addrs: {a: dict(sample_dex[a]) for a in addrs if a in sample_dex}
+    LOTUS = "9wFFyRfZBsuAha4YcuxcXLKwMxJR43S7fPfQLusDBzvT"
+    # lượt 1: DexScreener chưa ghi nhận LOTUS -> phải vào danh sách chờ, lượt sau tra lại được
+    run_hourly.dexscreener.lookup = lambda addrs: {a: dict(sample_dex[a]) for a in addrs if a in sample_dex and a != LOTUS}
 
     run_hourly.tg_creds = lambda: ("1", "a" * 32, "s" * 200)
 
@@ -92,6 +94,14 @@ def main():
     run_hourly.web_fetch.fetch = fake_web
     run_hourly.fulltext.enrich = lambda msgs, health, log=print, **kw: 0  # không gọi mạng trong test
     run_hourly.main()
+    con0 = sqlite3.connect(DB_PATH)
+    pend = json.loads(con0.execute("SELECT value FROM state WHERE key='ca_pending'").fetchone()[0])
+    assert LOTUS in pend and not con0.execute("SELECT 1 FROM token_days WHERE address=?", [LOTUS]).fetchone(), pend.keys()
+    run_hourly.dexscreener.lookup = lambda addrs: {a: dict(sample_dex[a]) for a in addrs if a in sample_dex}
+    run_hourly.main()  # lượt chờ: LOTUS được tra lại và lên bảng với đúng người gửi đầu
+    lot = json.loads(con0.execute("SELECT data FROM token_days WHERE address=?", [LOTUS]).fetchone()[0])
+    pend = json.loads(con0.execute("SELECT value FROM state WHERE key='ca_pending'").fetchone()[0])
+    assert lot["first_sender"] and lot["first_group"] and LOTUS not in pend, (lot.get("first_sender"), pend.keys())
     # chạy lần 2: không có tin mới, token đã có giá lần đầu
     run_hourly.fetch_telegram = lambda g, m, c: _empty()
     run_hourly.main()

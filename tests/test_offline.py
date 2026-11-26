@@ -111,6 +111,27 @@ def test_dex_down():
     print("dex-down OK")
 
 
+def test_dex_one_by_one():
+    """Mỗi CA một lần hỏi: token nhiều cặp không chiếm chỗ của CA khác (lỗi CA 12:19 ngày 26/11)."""
+    asked = []
+    big = "0x" + "b" * 40
+
+    def fake_get(url, retries=3):
+        addr = url.rsplit("/", 1)[-1]
+        asked.append(addr)
+        n = 30 if addr == big else 1
+        return {"pairs": [{"baseToken": {"address": addr, "symbol": "T"}, "priceUsd": "1", "liquidity": {"usd": 1}}] * n}
+    old = dexscreener._get
+    dexscreener._get = fake_get
+    dexscreener.time.sleep = lambda s: None
+    try:
+        out = dexscreener.lookup([big, EVM])
+    finally:
+        dexscreener._get = old
+    assert asked == [big, EVM] and set(out) == {big, EVM}, (asked, list(out))
+    print("dex one-by-one OK")
+
+
 def test_health():
     import urllib.error
     from health import Health, classify
@@ -204,6 +225,7 @@ def test_nitter_fallback():
 
 
 if __name__ == "__main__":
+    test_dex_one_by_one()
     test_health()
     test_fulltext()
     test_youtube()

@@ -12,6 +12,10 @@ on:
         description: "Xoá dữ liệu hôm nay rồi chạy lại từ 0 giờ"
         type: boolean
         default: false
+      recheck_ca:
+        description: "Quét lại CA trong tin đã lưu hôm nay mà chưa lên bảng token"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -69,6 +73,7 @@ jobs:
       - name: Lấy tin và tóm tắt
         env:
           RESET_TODAY: ${{ inputs.reset_today }}
+          RECHECK_CA: ${{ inputs.recheck_ca }}
           TRIGGER: ${{ github.event_name }}
           BACKFILL_FROM: ${{ inputs.backfill_from }}
           HIDE_NAMES: "1"   # repo công khai: log không in tên nhóm
