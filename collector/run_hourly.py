@@ -5,6 +5,7 @@ CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN. Đặt HIDE_NAMES=1 để log khôn
 """
 import asyncio
 import json
+import re
 import os
 import sys
 from collections import defaultdict
@@ -19,6 +20,7 @@ import web_fetch  # noqa: E402
 import x_fetch  # noqa: E402
 from x_trend import trending  # noqa: E402
 from d1 import D1  # noqa: E402
+from config import LINK_SKIP_DOMAINS  # noqa: E402
 from filters import filter_messages  # noqa: E402
 
 VN = timezone(timedelta(hours=7))
@@ -173,7 +175,8 @@ def main():
             x["uids"].add(m["uid"])
             x["from_x"] = x.get("from_x") or m.get("source") == "x"
             x["groups"].add(m["group"])
-            x["first"] = min(filter(None, [x["first"], m["date"]]))
+            if not x["first"] or m["date"] < x["first"]:
+                x["first"], x["first_group"] = m["date"], m["group"]
             if len(x["links"]) < 5:
                 x["links"].append(m["link"])
     tok_days = sorted({d for d, _ in mentions} | {today})
@@ -209,6 +212,7 @@ def main():
              "mentions": len(uids) if uids else prev.get("mentions", 0),
              "groups": sorted(set(prev.get("groups", [])) | (mm["groups"] if mm else set())),
              "first_seen": prev.get("first_seen") or (mm["first"] if mm else None),
+             "first_group": prev.get("first_group") or (mm.get("first_group") if mm else None),
              "msg_links": list(dict.fromkeys(prev.get("msg_links", []) + (mm["links"] if mm else [])))[:5]}
         k = known.get(key)
         if k and k.get("first_price") and t.get("price_usd"):
@@ -244,8 +248,11 @@ def main():
         "contracts": m["contracts"], "link": m["link"]}, ensure_ascii=False)] for m in kept if m["watch"]],
         conflict=["uid"])
     link_rows = {}
+    skip = re.compile(r"^(?:https?://)?(?:[\w-]+\.)*(?:" + "|".join(map(re.escape, LINK_SKIP_DOMAINS)) + r")(?:[/:?#]|$)", re.I)
     for m in kept:
         for u in m["links"]:
+            if skip.match(u):
+                continue
             link_rows[(u, vn_day(m["date"]))] = [u, vn_day(m["date"]), m["date"], json.dumps({
                 "url": u, "group": m["group"], "date": m["date"], "topics": m["topics"],
                 "context": m["text"][:200], "msg": m["link"]}, ensure_ascii=False)]
