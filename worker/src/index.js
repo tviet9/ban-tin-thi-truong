@@ -22,13 +22,14 @@ async function inChunks(db, sql, ids) {
 
 async function sources(db) {
   const r = await db.prepare("SELECT kind, value, title FROM sources ORDER BY created_at").all();
-  const s = { telegram: [], websites: [], watch_senders: [], x: [], youtube: [] };
+  const s = { telegram: [], websites: [], watch_senders: [], x: [], youtube: [], flow: [] };
   for (const x of r.results) {
     if (x.kind === "telegram") s.telegram.push({ id: x.value, title: x.title });
     else if (x.kind === "website") s.websites.push({ url: x.value, title: x.title });
     else if (x.kind === "sender") s.watch_senders.push(x.value);
     else if (x.kind === "x") s.x.push({ url: x.value, title: x.title });
     else if (x.kind === "youtube") s.youtube.push({ url: x.value, title: x.title });
+    else if (x.kind === "flow") s.flow.push({ id: x.value, title: x.title });
   }
   // trạng thái từng nguồn do bộ thu tin ghi (lần lấy được cuối, lỗi gần nhất)
   const h = await db.prepare("SELECT value FROM state WHERE key = 'source_health'").first();
@@ -38,11 +39,11 @@ async function sources(db) {
 
 async function buildData(env, day) {
   const db = env.DB;
-  const [dg, hrs, toks, wt, lk, st, xp, xt, days, last, src] = await Promise.all([
+  const [dg, hrs, toks, wt, lk, st, xp, xt, days, last, src, fl, fs] = await Promise.all([
     db.prepare("SELECT data FROM digests WHERE day = ?").bind(day).first(),
     db.prepare("SELECT data FROM hours WHERE day = ? ORDER BY hour DESC").bind(day).all(),
     db.prepare("SELECT data FROM token_days WHERE day = ?").bind(day).all(),
-    db.prepare("SELECT data FROM watch WHERE day = ? ORDER BY date DESC LIMIT 500").bind(day).all(),
+    db.prepare("SELECT data FROM watch WHERE day = ? AND data NOT LIKE '%\"dong_tien\"%' ORDER BY date DESC LIMIT 500").bind(day).all(),
     db.prepare("SELECT data FROM links WHERE day = ? ORDER BY date DESC LIMIT 300").bind(day).all(),
     db.prepare("SELECT data FROM stats WHERE day = ?").bind(day).first(),
     db.prepare("SELECT data FROM x_posts WHERE day = ? ORDER BY date DESC LIMIT 300").bind(day).all(),
@@ -50,6 +51,9 @@ async function buildData(env, day) {
     db.prepare("SELECT day FROM stats ORDER BY day DESC LIMIT 400").all(),
     db.prepare("SELECT value FROM state WHERE key = 'last_run'").first(),
     sources(db),
+    // mục Dòng tiền: tin từ các kênh dòng tiền (lưu chung bảng watch, nhãn dong_tien) + bản tóm tắt riêng
+    db.prepare("SELECT data FROM watch WHERE day = ? AND data LIKE '%\"dong_tien\"%' ORDER BY date DESC LIMIT 500").bind(day).all(),
+    db.prepare("SELECT data FROM flow_sum WHERE day = ?").bind(day).first(),
   ]);
   const digest = dg ? parse(dg.data, null) : null;
   const hours = hrs.results.map(r => parse(r.data, null)).filter(Boolean);
@@ -75,7 +79,7 @@ async function buildData(env, day) {
     generated_at: last ? parse(last.value, null) : null,
     sample: false, api: true, day, days: days.results.map(r => r.day),
     topics: TOPICS, sections: SECTIONS, tags: TAGS,
-    groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url), src.x.map(x => "X · " + (x.title || "X")), src.youtube.map(y => "YouTube · " + (y.title || y.url))),
+    groups: src.telegram.map(g => g.title || g.id).concat(src.websites.map(w => w.title || w.url), src.x.map(x => "X · " + (x.title || "X")), src.youtube.map(y => "YouTube · " + (y.title || y.url)), src.flow.map(f => f.title || f.id)),
     stats: { total: stats.total || 0, kept: stats.kept || 0 },
     digest: digest || { overview: "Chưa có dữ liệu cho ngày này. Hệ thống cập nhật mỗi 20 phút.", events: [] },
     hours, tokens,
@@ -85,6 +89,8 @@ async function buildData(env, day) {
     messages: msgs, sources: src,
     x_posts: xp.results.map(r => parse(r.data, null)).filter(Boolean),
     x_trend: xt ? parse(xt.data, []) : [],
+    flow: fl.results.map(r => parse(r.data, null)).filter(Boolean),
+    flow_sum: fs ? parse(fs.data, null) : null,
   };
 }
 
@@ -135,7 +141,8 @@ async function handleSources(req, env) {
   if (bad) return bad;
   const body = await req.json().catch(() => ({}));
   const kind = String(body.kind || ""), value = String(body.value || "").trim(), title = String(body.title || "").trim().slice(0, 100);
-  if (!["telegram", "website", "sender", "x", "youtube"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
+  if (!["telegram", "website", "sender", "x", "youtube", "flow"].includes(kind) || !value || value.length > 300) return json({ error: "Dữ liệu không hợp lệ" }, 400);
+  if (kind === "flow" && !/^(-100\d{6,}|@[A-Za-z0-9_]{4,})$/.test(value)) return json({ error: "ID kênh phải dạng -100... hoặc @tenkenh" }, 400);
   if (kind === "telegram" && !/^(-100\d{6,}|@[A-Za-z0-9_]{4,})$/.test(value)) return json({ error: "ID nhóm phải dạng -100... hoặc @tennhom" }, 400);
   if (kind === "website" && !/^https?:\/\/[^\s]+$/.test(value)) return json({ error: "Link trang web phải bắt đầu bằng http(s)://" }, 400);
   if (kind === "x" && !/^(list:\d+|@[A-Za-z0-9_]{1,15}|https?:\/\/\S+)$/.test(value)) return json({ error: "Nguồn X phải là link List (x.com/i/lists/...), @tài_khoản hoặc link RSS" }, 400);

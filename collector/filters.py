@@ -59,6 +59,8 @@ def watch_tags(m):
     ids = {str(m.get("sender_id") or ""), (m.get("sender_username") or "").lower(), (m.get("sender") or "").strip().lower()}
     if _WATCH_SENDERS & (ids - {""}):
         tags.append("nguoi")
+    if m.get("flow"):  # tin từ kênh Dòng tiền: luôn giữ, hiện ở mục Dòng tiền
+        tags.append("dong_tien")
     return tags
 
 

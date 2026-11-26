@@ -58,7 +58,7 @@ def start_of_today():
 
 def load_sources(db):
     rows = db.query("SELECT kind, value, title FROM sources ORDER BY kind, value")
-    out = {"telegram": [], "website": [], "sender": [], "x": [], "youtube": []}
+    out = {"telegram": [], "website": [], "sender": [], "x": [], "youtube": [], "flow": []}
     for r in rows:
         out.setdefault(r["kind"], []).append(r)
     return out
@@ -106,7 +106,7 @@ async def fetch_telegram(groups, min_ids, creds):
 def reset_today(db):
     """Xoá dữ liệu hôm nay (dùng khi lượt trước lỗi giữa chừng). Giữ nguyên danh sách nguồn."""
     d = datetime.now(VN).strftime("%Y-%m-%d")
-    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats"):
+    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats", "flow_sum"):
         db.query(f"DELETE FROM {t} WHERE day = ?", [d])
     db.query("DELETE FROM tokens WHERE first_at >= ?", [start_of_today().isoformat(timespec="minutes")])
     db.query("DELETE FROM state WHERE key IN ('min_ids', 'last_run', 'last_web_run')")
@@ -126,7 +126,7 @@ def main():
     src = load_sources(db)
     now = datetime.now(timezone.utc)
     log(f"[nguồn] {len(src['telegram'])} nhóm, {len(src['website'])} trang web, {len(src['x'])} nguồn X, "
-        f"{len(src['youtube'])} kênh YouTube, {len(src['sender'])} người theo dõi")
+        f"{len(src['youtube'])} kênh YouTube, {len(src['flow'])} kênh dòng tiền, {len(src['sender'])} người theo dõi")
     health = Health(db.get_state("source_health", {}))
 
     # người theo dõi lấy từ database
@@ -136,21 +136,26 @@ def main():
     # 1. Telegram
     min_ids = db.get_state("min_ids", {})
     msgs, info = ([], {})
-    if src["telegram"]:
-        msgs, info = asyncio.run(fetch_telegram(src["telegram"], min_ids, tg_creds()))
+    tg_groups = src["telegram"] + src["flow"]  # kênh Dòng tiền cũng đọc bằng tài khoản Telegram
+    if tg_groups:
+        msgs, info = asyncio.run(fetch_telegram(tg_groups, min_ids, tg_creds()))
+    flow_ids = {str(r["value"]) for r in src["flow"]}
+    for m in msgs:
+        if str(m["group_id"]) in flow_ids:
+            m["flow"] = True
     per_group = defaultdict(int)
     for m in msgs:
         per_group[str(m["group_id"])] += 1
-    for r in src["telegram"]:
-        if str(r["value"]) in info:
-            health.ok("telegram:" + str(r["value"]), per_group[str(r["value"])])
-        else:
-            health.fail("telegram:" + str(r["value"]), "not_joined")
-    # cập nhật tên nhóm thật nếu người dùng chưa đặt tên
-    for r in src["telegram"]:
-        i = info.get(str(r["value"]))
-        if i and not r.get("title"):
-            db.query("UPDATE sources SET title = ? WHERE kind = 'telegram' AND value = ?", [i["real_title"], r["value"]])
+    for kind in ("telegram", "flow"):
+        for r in src[kind]:
+            if str(r["value"]) in info:
+                health.ok(f"{kind}:{r['value']}", per_group[str(r["value"])])
+            else:
+                health.fail(f"{kind}:{r['value']}", "not_joined")
+            # cập nhật tên nhóm thật nếu người dùng chưa đặt tên
+            i = info.get(str(r["value"]))
+            if i and not r.get("title"):
+                db.query("UPDATE sources SET title = ? WHERE kind = ? AND value = ?", [i["real_title"], kind, r["value"]])
 
     # 2. Trang web, tài khoản X và kênh YouTube (đều đọc qua RSS), bỏ bài đã lưu
     xmsgs = []
@@ -382,6 +387,28 @@ def main():
     db.set_state("merge_at", {k: v for k, v in merge_at.items() if k >= keep})
     db.set_state("merge_pending", sorted(d for d in pending if d >= keep))
 
+    # 6b. Tóm tắt riêng mục Dòng tiền: AI làm lại tối đa mỗi giờ một lần, khi có tin dòng tiền mới
+    flow_at = db.get_state("flow_at", {})
+    fpend = set(db.get_state("flow_pending", [])) | {vn_day(m["date"]) for m in kept if m.get("flow")}
+    for d in sorted(fpend):
+        last_f = flow_at.get(d)
+        if last_f and now - datetime.fromisoformat(last_f) < timedelta(minutes=MERGE_EVERY_MIN):
+            continue
+        rows = db.query("SELECT data FROM watch WHERE day = ? AND data LIKE ? ORDER BY date DESC LIMIT 200",
+                        [d, '%"dong_tien"%'])
+        items = [json.loads(r["data"]) for r in rows][::-1]
+        fpend.discard(d)
+        if not items:
+            continue
+        log(f"[AI] tóm tắt dòng tiền ngày {d} ({len(items)} tin)")
+        res = sm.summarize(keys, [{**x, "text": x["text"][:600]} for x in items],
+                           f"dòng tiền crypto ngày {d} (giờ Việt Nam): cá voi, quỹ, nạp/rút sàn, mua bán lớn")
+        db.upsert("flow_sum", ["day", "data"], [[d, json.dumps({**res, "count": len(items), "at": now.isoformat()},
+                                                                ensure_ascii=False)]], conflict=["day"])
+        flow_at[d] = now.isoformat()
+    db.set_state("flow_at", {k: v for k, v in flow_at.items() if k >= keep})
+    db.set_state("flow_pending", sorted(d for d in fpend if d >= keep))
+
     # 7. Thống kê ngày + trạng thái
     for d in days:
         st = db.query("SELECT data FROM stats WHERE day = ?", [d])
@@ -398,7 +425,7 @@ def main():
         "username": m.get("sender_username"), "text": m["text"][:400]},
         ensure_ascii=False)] for m in kept], conflict=["uid"])
     db.set_state("min_ids", min_ids)
-    health.keep_only({f"{k}:{r['value']}" for k in ("telegram", "website", "x", "youtube") for r in src[k]})
+    health.keep_only({f"{k}:{r['value']}" for k in ("telegram", "website", "x", "youtube", "flow") for r in src[k]})
     db.set_state("source_health", health.d)
     if has_feeds:
         db.set_state("web_seen", web_seen)
@@ -407,7 +434,7 @@ def main():
 
     # 8. Xoá dữ liệu cũ hơn 1 năm
     cutoff = (datetime.now(VN) - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%d")
-    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats", "x_posts", "x_trend"):
+    for t in ("hours", "digests", "messages", "watch", "links", "token_days", "stats", "x_posts", "x_trend", "flow_sum"):
         db.query(f"DELETE FROM {t} WHERE day < ?", [cutoff])
     log("[xong]")
 

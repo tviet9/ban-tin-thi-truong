@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       kind:
-        description: "Loại: telegram | website | sender | x"
+        description: "Loại: telegram | flow (kênh Dòng tiền) | website | sender | x | youtube"
         required: true
       value:
         description: "Giá trị (ví dụ list:123, @ten, -100..., https://...)"

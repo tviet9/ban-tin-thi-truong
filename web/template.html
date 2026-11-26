@@ -277,6 +277,7 @@ const NAV = [
   {head:"Thị trường"},
   {id:"chung_khoan", label:"Chứng khoán", news:["chung_khoan"]},
   {id:"crypto", label:"Crypto", news:["crypto"]},
+  {id:"flow", label:"Dòng tiền", sub:true},
   {id:"watch", label:"Theo dõi", sub:true},
   {id:"tokens", label:"Bảng token (CA)", sub:true},
   {head:"X (Twitter)"},
@@ -287,7 +288,7 @@ const NAV = [
   {id:"links", label:"Link"},
   {id:"settings", label:"Cài đặt nguồn"},
 ];
-const state = {nav:"all", mode:"digest", minImp:1, tag:"all", watch:"all", tokLimit:100, xacc:"all", tkind:"all"};
+const state = {nav:"all", mode:"digest", minImp:1, tag:"all", watch:"all", tokLimit:100, xacc:"all", tkind:"all", fgroup:"all"};
 try { Object.assign(state, JSON.parse(localStorage.getItem("digest-state-v2") || "{}")); } catch(e) {}
 const navIds = NAV.filter(n => n.id).map(n => n.id);
 if (navIds.includes(location.hash.slice(1))) state.nav = location.hash.slice(1);
@@ -336,6 +337,7 @@ function header(){
 function count(n){
   if (n.id === "tokens") return DATA.tokens.filter(fromTg).length;
   if (n.id === "watch") return (DATA.watch||[]).length;
+  if (n.id === "flow") return (DATA.flow||[]).length;
   if (n.id === "links") return goodLinks().length;
   if (n.id === "x_posts") return (DATA.x_posts||[]).length;
   if (n.id === "x_trend") return (DATA.x_trend||[]).length;
@@ -367,6 +369,11 @@ function bar(){
     const kinds = [...new Set(tr.map(t => t.kind))];
     h += `<div class="chips">` + [["all","Tất cả"], ...kinds.map(k => [k, k])].map(([k,l]) =>
       `<button class="chip" data-tkind="${esc(k)}" aria-pressed="${state.tkind===k}">${esc(l)} · ${k==="all" ? tr.length : tr.filter(t => t.kind === k).length}</button>`).join("") + `</div>`;
+  } else if (n.id === "flow") {
+    const fl = DATA.flow || [];
+    const grs = [...new Set(fl.map(m => m.group))];
+    h += `<div class="chips">` + [["all","Tất cả"], ...grs.map(g => [g, g])].map(([k,l]) =>
+      `<button class="chip" data-fgroup="${esc(k)}" aria-pressed="${state.fgroup===k}">${esc(l)} · ${k==="all" ? fl.length : fl.filter(m => m.group === k).length}</button>`).join("") + `</div>`;
   } else if (n.id === "watch") {
     const w = DATA.watch || [];
     const opts = [["all","Tất cả"], ...Object.entries(DATA.watch_labels || {})];
@@ -468,6 +475,29 @@ function renderTokens(onlyX){
   <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th>Gửi lần đầu</th><th class="num">Giá lần đầu</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
 }
 
+// Dòng tiền: bản tóm tắt AI (làm lại mỗi giờ) + toàn bộ tin từ các kênh dòng tiền, mới nhất trước
+function renderFlow(){
+  const all = DATA.flow || [];
+  const hint = `<p class="note">Tin từ các kênh dòng tiền (cá voi, quỹ, nạp/rút sàn). Thêm kênh ở <a href="#settings">Cài đặt nguồn</a>, loại "Kênh Dòng tiền".</p>`;
+  if (!all.length) return hint + `<p class="empty">Chưa có tin dòng tiền nào trong ngày này.</p>`;
+  const fs = DATA.flow_sum;
+  let sum = "";
+  if (fs && (fs.events||[]).length) {
+    const saved = DATA.messages;  // để thẻ sự kiện hiện được "tin gốc" từ tin dòng tiền
+    DATA.messages = Object.assign({}, saved, Object.fromEntries(all.map(m => [m.uid, m])));
+    try {
+      const evs = fs.events.slice().sort((a, b) => b.importance - a.importance);
+      sum = `<section class="overview"><p class="lbl">Tóm tắt dòng tiền · cập nhật ${fmtTime(fs.at)}</p><p>${esc(fs.overview)}</p></section>` + evs.map(eventCard).join("");
+    } finally { DATA.messages = saved; }
+  }
+  const list = all.filter(m => state.fgroup === "all" || m.group === state.fgroup);
+  return hint + sum + `<h3 class="dayhead">Tin dòng tiền (${list.length})</h3>` + list.map(m => {
+    const long = (m.text||"").length > 400;
+    return `<article class="card"><div class="meta"><span><b>${esc(m.group)}</b> · ${fmtTime(m.date)}</span><a href="${safeUrl(m.link)}" target="_blank" rel="noopener">mở trong Telegram</a></div>
+      <div class="wtext${long ? " clamp6" : ""}" id="fl-${esc(m.uid)}">${esc(m.text)}</div>${long ? `<button class="more" data-more="fl-${esc(m.uid)}">Xem thêm</button>` : ""}</article>`;
+  }).join("");
+}
+
 function renderWatch(){
   const w = (DATA.watch || []).filter(m => state.watch === "all" ? true
     : state.watch.startsWith("p:") ? (m.sender || m.username) === state.watch.slice(2) : m.tags.includes(state.watch));
@@ -539,6 +569,7 @@ const KINDS = {
   sender: {label:"Người theo dõi", ph:"@username…"},
   x: {label:"X: List hoặc tài khoản", ph:"https://x.com/i/lists/… hoặc @tên…"},
   youtube: {label:"Kênh YouTube", ph:"https://www.youtube.com/@tenkenh…"},
+  flow: {label:"Kênh Dòng tiền (Telegram)", ph:"https://web.telegram.org/a/#-100… hoặc @tenkenh"},
 };
 function parseTelegram(v){
   v = v.trim();
@@ -566,6 +597,7 @@ function renderSettings(){
   const tg = (s.telegram||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||g.id)}</b><div class="v">${esc(g.id)}</div>${health("telegram:" + g.id)}</div>${del("telegram", g.id)}</div>`);
   const web = (s.websites||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div>${health("website:" + w.url)}</div>${del("website", w.url)}</div>`);
   const xs = (s.x||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||"X")}</b><div class="v">${esc(w.url)}</div>${health("x:" + w.url)}</div>${del("x", w.url)}</div>`);
+  const fls = (s.flow||[]).map(g => `<div class="srcrow"><div><b>${esc(g.title||g.id)}</b><div class="v">${esc(g.id)}</div>${health("flow:" + g.id)}</div>${del("flow", g.id)}</div>`);
   const yts = (s.youtube||[]).map(w => `<div class="srcrow"><div><b>${esc(w.title||w.url)}</b><div class="v">${esc(w.url)}</div>${health("youtube:" + w.url)}</div>${del("youtube", w.url)}</div>`);
   const ppl = (s.watch_senders||[]).map(p => `<div class="srcrow"><div><b>@${esc(String(p).replace(/^@/,""))}</b></div>${del("sender", p)}</div>`);
   const note = `<p class="note">Nguồn mới có hiệu lực từ lần cập nhật kế tiếp (tối đa 20 phút). Nhóm Telegram: tài khoản phụ phải vào nhóm trước.</p>`;
@@ -579,6 +611,7 @@ function renderSettings(){
     + block("Nhóm Telegram", tg, "Chưa có nhóm nào.")
     + block("Trang web / báo", web, "Chưa có trang nào. Thêm link RSS của báo để lấy tin kinh tế, chứng khoán.")
     + block("Tài khoản X", xs, "Chưa có nguồn X. Nên dán link một List X (x.com/i/lists/…) chứa các tài khoản cần theo dõi: đọc một List ít bị chặn hơn đọc từng tài khoản.")
+    + block("Kênh Dòng tiền", fls, "Chưa có kênh nào. Tin từ các kênh này hiện ở mục Crypto → Dòng tiền và được AI tóm tắt riêng.")
     + block("Kênh YouTube", yts, "Chưa có kênh nào. Video mới được tóm tắt từ phụ đề; YouTube chặn thì dùng tiêu đề và mô tả video.")
     + block("Người theo dõi", ppl, "Chưa có ai.")
     + block("Dịch vụ phụ", svcRows(), "Chưa có dữ liệu. Hiện sau lượt cập nhật kế tiếp.");
@@ -598,7 +631,7 @@ document.addEventListener("submit", async ev => {
   ev.preventDefault();
   const kind = $("#f-kind").value, raw = $("#f-val").value.trim(), title = $("#f-title").value.trim(), msg = $("#f-msg");
   let value = raw;
-  if (kind === "telegram") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100… hoặc @tennhom."; return; } }
+  if (kind === "telegram" || kind === "flow") { value = parseTelegram(raw); if (!value) { msg.className = "msg err"; msg.textContent = "Không đọc được ID nhóm. Dán link web.telegram.org/a/#-100… hoặc @tennhom."; return; } }
   if (kind === "website" && !/^https?:\/\//.test(value)) value = "https://" + value;
   if (kind === "sender") value = value.replace(/^@/, "");
   if (kind === "youtube") {  // nhận link kênh, @tên hoặc ID UC...
@@ -661,7 +694,7 @@ async function refreshNow(b){
 let fadeIn = false;
 const calm = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(e) { return true; } };
 // Dòng tin xuyên suốt: các mục dạng danh sách lướt xuống sẽ nối tiếp tin của những ngày trước
-const FEED = new Set(["all","kinh_te","kinh_te_vn","kinh_te_qt","chung_khoan","crypto","watch","links","x_posts"]);
+const FEED = new Set(["all","kinh_te","kinh_te_vn","kinh_te_qt","chung_khoan","crypto","flow","watch","links","x_posts"]);
 const dayCache = {};
 let feedDays = [], feedObs = null, feedBusy = false;
 const OLDER = () => (TODAY.days || []).filter(d => d < TODAY.day).sort().reverse();
@@ -669,7 +702,7 @@ const dayLabel = d => { try { return new Date(d + "T12:00:00+07:00").toLocaleDat
 function viewHtml(n){
   return n.id === "tokens" ? renderTokens() : n.id === "x_ca" ? renderTokens(true)
     : n.id === "x_posts" ? renderXPosts() : n.id === "x_trend" ? renderXTrend()
-    : n.id === "watch" ? renderWatch() : n.id === "links" ? renderLinks()
+    : n.id === "watch" ? renderWatch() : n.id === "flow" ? renderFlow() : n.id === "links" ? renderLinks()
     : n.id === "settings" ? renderSettings() : renderNews(n);
 }
 function withDay(d, fn){ const old = DATA; DATA = d; try { return fn(); } finally { DATA = old; } }
@@ -726,6 +759,7 @@ document.addEventListener("click", ev => {
   else if (b.dataset.watch) state.watch = b.dataset.watch;
   else if (b.dataset.xacc) state.xacc = b.dataset.xacc;
   else if (b.dataset.tkind) state.tkind = b.dataset.tkind;
+  else if (b.dataset.fgroup) state.fgroup = b.dataset.fgroup;
   else if (b.dataset.tokmore) state.tokLimit += 100;
   else if (b.dataset.more) { const el = document.getElementById(b.dataset.more); const open = el.classList.toggle("clamp6") === false; b.textContent = open ? "Thu gọn" : "Xem thêm"; return; }
   else if (b.id === "refreshBtn") { refreshNow(b); return; }
