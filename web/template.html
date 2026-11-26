@@ -275,7 +275,7 @@ const NAV = [
   {head:"X (Twitter)"},
   {id:"x_posts", label:"Bài đăng X"},
   {id:"x_trend", label:"Trending", sub:true},
-  {id:"x_ca", label:"CA từ X", sub:true},
+  {id:"x_ca", label:"Bảng token (CA)", sub:true},
   {head:"Khác"},
   {id:"links", label:"Link"},
   {id:"settings", label:"Cài đặt nguồn"},
@@ -344,7 +344,7 @@ function side(){
 
 function bar(){
   const n = cur();
-  let h = `<h2>${esc(n.label === "Trong nước" || n.label === "Ngoài nước" ? "Kinh tế " + n.label.toLowerCase() : n.label)}</h2>`;
+  let h = `<h2>${esc(n.label === "Trong nước" || n.label === "Ngoài nước" ? "Kinh tế " + n.label.toLowerCase() : n.id === "x_ca" ? "Bảng token (CA) từ X" : n.id === "tokens" ? "Bảng token (CA) từ Telegram" : n.label)}</h2>`;
   if (n.news !== undefined) {
     h += `<div class="seg" role="group" aria-label="Cách xem"><button data-mode="digest" aria-pressed="${state.mode==="digest"}">Tổng hợp</button><button data-mode="hours" aria-pressed="${state.mode==="hours"}">Theo giờ</button></div>`;
     h += `<div class="chips">` + [1,3,4,5].map(v => `<button class="chip" data-imp="${v}" aria-pressed="${state.minImp===v}">${v===1?"Mọi mức":"Từ "+v+" điểm"}</button>`).join("") + `</div>`;
