@@ -224,7 +224,7 @@ def test_nitter_fallback():
     from health import Health
     tried = []
 
-    def fake_fetch(sites, since, site_offset=100, health=None, key_prefix="", timeout=25):
+    def fake_fetch(sites, since, site_offset=100, health=None, key_prefix="", timeout=25, discover_feed=True):
         url = sites[0]["url"]
         tried.append(url.split("/")[2])
         if "kareem" in url:
@@ -245,6 +245,25 @@ def test_nitter_fallback():
     finally:
         x_fetch.web_fetch.fetch = old
     print("nitter fallback OK")
+    # máy chính mất kết nối lần đầu: thử lại 1 lần, không chuyển sang máy dự phòng
+    calls = []
+
+    def flaky(sites, since, site_offset=100, health=None, key_prefix="", timeout=25, discover_feed=True):
+        url = sites[0]["url"]
+        calls.append(url.split("/")[2])
+        if len(calls) == 1:
+            health.fail(key_prefix + url, "network")
+            return [], []
+        health.ok(key_prefix + url, 1)
+        return [{"uid": "w-2", "text": "Hi", "raw_title": "Hi", "link": "https://n/a/status/2#m", "sender": "@a"}], []
+    x_fetch.web_fetch.fetch = flaky
+    try:
+        h = Health()
+        out = x_fetch.fetch(["list:1"], None, log=lambda *_: None, health=h)
+    finally:
+        x_fetch.web_fetch.fetch = old
+    assert len(out) == 1 and calls[0] == calls[1], calls
+    print("nitter retry OK")
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 # loại lỗi -> câu giải thích hiện trên web
 KINDS = {
     "rate_limited": "Bị giới hạn lượt (429), thường tự hết sau vài giờ",
-    "blocked": "Trang chặn máy chủ tự động (403/Cloudflare)",
+    "blocked": "Bị chặn truy cập tự động (403 hoặc đòi xác minh không phải bot)",
     "not_found": "Không tìm thấy (404): link sai hoặc nguồn đã xoá",
     "network": "Không kết nối được (hết giờ chờ / máy chủ không trả lời)",
     "bad_feed": "Không đọc được nội dung (không phải RSS hợp lệ)",
