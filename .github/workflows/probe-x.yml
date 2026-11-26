@@ -7,21 +7,12 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Thử các dịch vụ RSS cho X (tài khoản công khai elonmusk)
+      - name: Thử feed gộp nhiều tài khoản
         run: |
-          for u in \
-            https://nitter.net/elonmusk/rss \
-            https://nitter.privacydev.net/elonmusk/rss \
-            https://nitter.poast.org/elonmusk/rss \
-            https://xcancel.com/elonmusk/rss \
-            https://nitter.tiekoetter.com/elonmusk/rss \
-            https://nitter.space/elonmusk/rss \
-            https://lightbrd.com/elonmusk/rss \
-            https://nitter.kareem.one/elonmusk/rss \
-            https://rsshub.app/twitter/user/elonmusk \
-            https://rsshub.rssforever.com/twitter/user/elonmusk ; do
-            body=$(curl -sL -m 20 -A "Mozilla/5.0 (news-digest)" -w '\n%{http_code}' "$u" || true)
-            code=$(printf '%s' "$body" | tail -1)
-            items=$(printf '%s' "$body" | grep -o '<item>' | wc -l)
-            echo "$code items=$items $u"
+          for h in nitter.kareem.one nitter.tiekoetter.com; do
+            u="https://$h/5phutcrypto_,MINHxDYNASTY,LuckyStudent02,cz_binance,elonmusk/rss"
+            body=$(curl -sL -m 25 -A "Mozilla/5.0 (news-digest)" "$u" || true)
+            echo "$h items=$(printf '%s' "$body" | grep -o '<item>' | wc -l)"
+            printf '%s' "$body" | grep -o '<dc:creator>[^<]*</dc:creator>' | sort | uniq -c | head
+            printf '%s' "$body" | grep -o '<link>[^<]*</link>' | sed -n '2,3p'
           done
