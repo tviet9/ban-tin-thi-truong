@@ -6,6 +6,10 @@ on:
         description: "Kênh YouTube để thử (@tên hoặc ID UC...)"
         type: string
         default: "@VTV24"
+      url:
+        description: "Tuỳ chọn: link một trang để xem cấu trúc (mã trả về, link, đường dẫn API)"
+        type: string
+        default: ""
 permissions:
   contents: read
 jobs:
@@ -20,5 +24,10 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python scripts/probe.py "$CH"
+        if: ${{ inputs.url == '' }}
         env:
           CH: ${{ inputs.youtube }}
+      - run: python scripts/peek.py "$URL"
+        if: ${{ inputs.url != '' }}
+        env:
+          URL: ${{ inputs.url }}
