@@ -20,7 +20,7 @@ jobs:
             https://nitter.kareem.one/elonmusk/rss \
             https://rsshub.app/twitter/user/elonmusk \
             https://rsshub.rssforever.com/twitter/user/elonmusk ; do
-            body=$(curl -sL -m 20 -A "Mozilla/5.0 (news-digest)" -w '\n%{http_code}' "$u")
+            body=$(curl -sL -m 20 -A "Mozilla/5.0 (news-digest)" -w '\n%{http_code}' "$u" || true)
             code=$(printf '%s' "$body" | tail -1)
             items=$(printf '%s' "$body" | grep -o '<item>' | wc -l)
             echo "$code items=$items $u"
