@@ -35,7 +35,7 @@ def setup():
     now = datetime.now(timezone.utc).isoformat()
     con.executemany("INSERT INTO sources VALUES (?,?,?,?)", [
         ("telegram", "-1001", None, now), ("telegram", "-1002", "Tin vĩ mô", now), ("sender", "admin_vimo", None, now),
-        ("x", "https://rss.app/feeds/elon.xml", "@elonmusk", now)])
+        ("x", "https://rss.app/feeds/elon.xml", "@elonmusk", now), ("flow", "-1003", "Cá voi (mẫu)", now)])
     con.commit()
 
 
@@ -48,6 +48,11 @@ def fake_messages():
         m["group_id"] = -1001 if m["group_id"] != 2 else -1002
         m["date"] = (base + timedelta(minutes=i * 2)).isoformat()
         out.append(m)
+    # kênh Dòng tiền: tin không có từ khoá chủ đề vẫn phải được giữ
+    for i, t in enumerate(["🐳 5,000 ETH chuyển từ ví lạ vào Binance", "Ví quỹ A rút 20 triệu USDT khỏi OKX"]):
+        out.append({"uid": f"1003-{i}", "id": 9000 + i, "group_id": -1003, "group": "Cá voi (mẫu)", "sender": "Bot",
+                    "sender_id": 1, "sender_username": None, "text": t, "urls": [],
+                    "date": (base + timedelta(minutes=40 + i)).isoformat(), "link": f"https://t.me/c/1003/{i}"})
     return out
 
 
@@ -67,7 +72,7 @@ def main():
         msgs = fake_messages()
         for gid in ("-1001", "-1002"):
             min_ids[gid] = 2000
-        return msgs, {"-1001": {"real_title": "Nhóm Crypto (thật)"}, "-1002": {"real_title": "x"}}
+        return msgs, {"-1001": {"real_title": "Nhóm Crypto (thật)"}, "-1002": {"real_title": "x"}, "-1003": {"real_title": "y"}}
     run_hourly.fetch_telegram = fake_tg
     digest = json.loads((ROOT / "tests" / "sample_digest.json").read_text(encoding="utf-8"))
 
@@ -116,7 +121,7 @@ def main():
         ms = fake_messages()
         for m in ms:
             m["uid"] += "-n"
-        return ms, {"-1001": {"real_title": "Nhóm Crypto (thật)"}, "-1002": {"real_title": "x"}}
+        return ms, {"-1001": {"real_title": "Nhóm Crypto (thật)"}, "-1002": {"real_title": "x"}, "-1003": {"real_title": "y"}}
     run_hourly.fetch_telegram = fake_tg3
     run_hourly.main()
     after = len(json.loads(con.execute("SELECT data FROM digests").fetchone()[0])["events"])
@@ -145,7 +150,12 @@ def main():
     assert counts["digests"] == 1 and counts["tokens"] == 2 and counts["watch"] >= 1 and counts["messages"] > 10
     td = [json.loads(r[0]) for r in con.execute("SELECT data FROM token_days")]
     assert all(t["change_since_first"] is not None for t in td), "lần 2 phải có % so với lần đầu"
+    flows = [json.loads(r[0]) for r in con.execute("SELECT data FROM watch") if '"dong_tien"' in r[0]]
+    assert len(flows) == 4 and all(f["group"] == "Cá voi (mẫu)" for f in flows), len(flows)  # 2 tin x 2 lượt (lượt 3 lặp tin với mã mới)
+    fsum = json.loads(con.execute("SELECT data FROM flow_sum").fetchone()[0])
+    assert fsum["count"] == 4 and fsum["events"], fsum
     hs = json.loads(con.execute("SELECT value FROM state WHERE key='source_health'").fetchone()[0])
+    assert "ok_at" in hs.get("flow:-1003", {}), hs.keys()
     assert "ok_at" in hs.get("telegram:-1001", {}), hs
     print("test_hourly OK")
 
