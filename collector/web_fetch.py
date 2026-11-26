@@ -34,6 +34,31 @@ def _find_feed(page_url, body):
     return None
 
 
+# Trang không khai báo RSS (vd. vneconomy.vn): thử các đường dẫn RSS hay gặp của báo Việt Nam
+GUESS = ["/tin-moi.rss", "/rss/tin-moi-nhat.rss", "/rss/home.rss", "/home.rss", "/rss.xml", "/feed", "/rss"]
+
+
+def _is_feed(body):
+    head = body[:600].lstrip()
+    return b"<rss" in head or b"<feed" in head or (head.startswith(b"<?xml") and (b"<rss" in body[:3000] or b"<feed" in body[:3000]))
+
+
+def discover(page_url, body, timeout=25):
+    """Tìm link RSS: thẻ <link> trong trang, link .rss trong trang, rồi các đường dẫn hay gặp. Trả về (url, body) hoặc None."""
+    text = body.decode("utf-8", errors="ignore")
+    cands = [_find_feed(page_url, body)]
+    cands += [urljoin(page_url, html.unescape(h)) for h in re.findall(r'href=["\']([^"\']+\.rss)["\']', text, re.I)][:5]
+    cands += [urljoin(page_url, g) for g in GUESS]
+    for u in dict.fromkeys(c for c in cands if c):
+        try:
+            b, _ = _get(u, timeout)
+        except Exception:  # noqa: BLE001
+            continue
+        if _is_feed(b):
+            return u, b
+    return None
+
+
 def _date(s):
     if not s:
         return None
@@ -96,15 +121,14 @@ def fetch(websites, since, site_offset=100, health=None, key_prefix="website:", 
         hkey = key_prefix + w["url"]
         try:
             body, ctype = _get(url, timeout)
-            if "html" in ctype.lower() and b"<rss" not in body[:500] and b"<feed" not in body[:500]:
-                feed = _find_feed(url, body)
-                if not feed:
+            if "html" in ctype.lower() and not _is_feed(body):
+                found = discover(url, body, timeout)
+                if not found:
                     print(f"[web] {_n(url)}: không tìm thấy RSS. Hãy nhập thẳng link RSS của trang.")
                     if health:
                         health.fail(hkey, "no_feed")
                     continue
-                url = feed
-                body, _ = _get(url, timeout)
+                url, body = found
             site_title, items = parse_feed(body)
         except Exception as e:  # noqa: BLE001
             print(f"[web] {_n(url)}: lỗi {type(e).__name__}")

@@ -462,7 +462,7 @@ function renderTokens(onlyX){
       <td class="num" data-l="Thanh khoản">${fmtUsd(t.liquidity_usd)}</td>
       <td class="num" data-l="Vốn hoá">${fmtUsd(t.market_cap ?? t.fdv)}</td>
       <td class="num" data-l="Tuổi">${esc(t.age)}</td>
-      <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
+      <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="https://basedbot.app/token/${encodeURIComponent(t.address)}" target="_blank" rel="noopener">BasedBot</a></div></td></tr>`;
   }).join("");
   return `<p class="note">Xếp theo thời gian CA xuất hiện lần đầu, mới nhất ở trên. Giá lấy từ DexScreener lúc cập nhật. "Giá lần đầu" là giá ở lượt cập nhật đầu tiên sau khi CA được gửi (chậm nhất khoảng 20 phút); "Thay đổi" so giá hiện tại với giá lần đầu. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
   <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th>Gửi lần đầu</th><th class="num">Giá lần đầu</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
