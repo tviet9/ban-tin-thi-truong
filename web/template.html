@@ -49,6 +49,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .nav{display:flex;justify-content:space-between;align-items:center;gap:8px;border:0;background:none;text-align:left;padding:7px 10px;border-radius:7px;font-weight:500;color:var(--ink);width:100%}
 .nav.sub{padding-left:24px;font-weight:400;font-size:.92rem}
 .nav .c{font:500 .75rem var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.nav .c.new{color:#fff;background:var(--live);border-radius:999px;min-width:20px;padding:1px 6px;text-align:center;font-weight:700}
+.newc{color:var(--live);font-weight:700;font-style:normal}
+.chip[aria-pressed="true"] .newc{color:inherit}
+.stat .newc{font:700 .72rem var(--mono);margin-left:5px;vertical-align:super}
 
 .nav[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .nav[aria-current="true"] .c{color:var(--accent)}
@@ -325,13 +329,62 @@ function header(){
   $("#liveTxt").textContent = age < 60 ? "Đang cập nhật" : "Tạm dừng";
   $("#sub").title = DATA.groups.join("\n");
   const s = DATA.stats;
-  $("#stats").innerHTML = [[s.total,"tin đọc"],[s.kept,"tin liên quan"],[allEvents().length,"sự kiện"],[DATA.tokens.length,"token"],[(DATA.watch||[]).length,"tin theo dõi"]]
-    .map(([n,l]) => `<div class="stat"><b>${Number(n).toLocaleString("vi-VN")}</b><span>${l}</span></div>`).join("");
+  // "+N": mới kể từ lần trước bạn mở web (chỉ khi xem hôm nay)
+  const plus = arr => { const k = isLive() ? newCount(arr, SITE_PREV) : 0; return k ? `<i class="newc" title="${k} mới từ lần trước bạn mở web">+${k}</i>` : ""; };
+  $("#stats").innerHTML = [[s.total,"tin đọc",""],[s.kept,"tin liên quan",""],[allEvents().length,"sự kiện",plus(allEvents().map(evTs))],
+      [DATA.tokens.length,"token",plus(DATA.tokens.map(tokTs))],[(DATA.watch||[]).length,"tin theo dõi",plus((DATA.watch||[]).map(m => ts(m.date)))]]
+    .map(([n,l,p]) => `<div class="stat"><b>${Number(n).toLocaleString("vi-VN")}${p}</b><span>${l}</span></div>`).join("");
   if (DATA.days && DATA.api) {
     const days = DATA.days.includes(DATA.day) ? DATA.days : [DATA.day, ...DATA.days];
     $("#daySel").innerHTML = days.map(d => `<option value="${d}" ${d===DATA.day?"selected":""}>${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}</option>`).join("");
     $("#dayBox").hidden = false;
   }
+}
+
+// ===== Số tin mới kể từ lần cuối mở từng mục (lưu trong trình duyệt này) =====
+const SEEN_KEY = "dm_seen_v1";
+let SEEN = {};
+try { SEEN = JSON.parse(localStorage.getItem(SEEN_KEY) || "{}") || {}; } catch(e) { SEEN = {}; }
+const saveSeen = () => { try { localStorage.setItem(SEEN_KEY, JSON.stringify(SEEN)); } catch(e) {} };
+const vnToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+const isLive = () => DATA === TODAY && TODAY.day === vnToday();  // chỉ đếm "mới" khi đang xem hôm nay
+const prevSeen = {};  // mốc "lần trước" của mục đang xem, để nút lọc vẫn hiện số mới trong lúc xem
+let seenNav = null;
+const SITE_PREV = SEEN._site || 0;  // lần trước mở web: cho các ô số liệu góc trên
+SEEN._site = Date.now(); saveSeen();
+function markSeen(id){
+  if (!isLive() || seenNav === id) return;
+  seenNav = id;
+  prevSeen[id] = SEEN[id] || 0;
+  SEEN[id] = Date.now(); saveSeen();
+}
+const since = id => id === seenNav ? prevSeen[id] : (SEEN[id] || 0);
+const ts = d => Date.parse(d || "") || 0;
+// sự kiện không có giờ gửi: lấy mốc giờ muộn nhất trong các ý "HH:MM · ..." của ngày đang xem
+const evTs = e => Math.max(0, ...(e.points||[]).map(p => { const m = /^(\d{1,2}):(\d{2})/.exec(p); return m ? ts(`${DATA.day}T${m[1].padStart(2,"0")}:${m[2]}:00+07:00`) : 0; }));
+const tokTs = t => ts(t.first_mention || t.first_seen);
+function itemsOf(n){  // [mốc thời gian] của từng mục
+  if (n.id === "tokens") return DATA.tokens.filter(fromTg).map(tokTs);
+  if (n.id === "x_ca") { const xc = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || [])); return DATA.tokens.filter(t => t.x || xc.has(t.address)).map(tokTs); }
+  if (n.id === "watch") return (DATA.watch||[]).map(m => ts(m.date));
+  if (n.id === "flow") return (DATA.flow||[]).map(m => ts(m.date));
+  if (n.id === "links") return goodLinks().map(l => ts(l.date));
+  if (n.id === "x_posts") return (DATA.x_posts||[]).map(p => ts(p.date));
+  if (n.id === "x_trend") return (DATA.x_trend||[]).map(t => Math.max(0, ...postsFor(t.term).map(p => ts(p.date))));
+  return allEvents().filter(e => inNav(e, n)).map(evTs);
+}
+const newCount = (stamps, after) => stamps.filter(x => x > after).length;
+// số đỏ trên nút lọc: tin mới trong nhóm đó kể từ lần trước mở mục; ngày cũ thì hiện tổng như trước
+const chipNum = (id, stamps) => isLive() ? (k => k ? ` <b class="newc">${k}</b>` : "")(newCount(stamps, since(id))) : ` · ${stamps.length}`;
+function srcErrors(){
+  const h = (DATA.sources||{}).health || {};
+  return Object.entries(h).filter(([k, v]) => !k.startsWith("svc:") && v.err_at && (!v.ok_at || v.err_at > v.ok_at)).length;
+}
+function navNum(n){
+  if (n.id === "settings") { const e = srcErrors(); return e ? `<span class="c new" title="${e} nguồn đang lỗi">${e}</span>` : `<span class="c"></span>`; }
+  if (!isLive()) return `<span class="c">${count(n)}</span>`;
+  const k = state.nav === n.id ? 0 : newCount(itemsOf(n), since(n.id));
+  return k ? `<span class="c new" title="${k} tin mới từ lần cuối bạn xem">${k}</span>` : `<span class="c"></span>`;
 }
 
 function count(n){
@@ -348,7 +401,7 @@ function count(n){
 
 function side(){
   $("#side").innerHTML = NAV.map(n => n.head ? `<div class="navh">${esc(n.head)}</div>` :
-    `<button class="nav${n.sub?" sub":""}" data-nav="${n.id}" id="nav-${n.id}" aria-current="${state.nav===n.id}"><span>${esc(n.label)}</span><span class="c">${count(n)}</span></button>`).join("");
+    `<button class="nav${n.sub?" sub":""}" data-nav="${n.id}" id="nav-${n.id}" aria-current="${state.nav===n.id}"><span>${esc(n.label)}</span>${navNum(n)}</button>`).join("");
 }
 
 function bar(){
@@ -362,24 +415,24 @@ function bar(){
     const acc = [...new Set((DATA.x_posts||[]).map(p => p.group))];
     const ps = DATA.x_posts || [];
     h += `<div class="chips">` + [["all","Tất cả"], ...acc.map(a => [a, a.replace(/^X · /, "")])].map(([k,l]) =>
-      `<button class="chip" data-xacc="${esc(k)}" aria-pressed="${state.xacc===k}">${esc(l)} · ${k==="all" ? ps.length : ps.filter(p => p.group === k).length}</button>`).join("") + `</div>`;
+      `<button class="chip" data-xacc="${esc(k)}" aria-pressed="${state.xacc===k}">${esc(l)}${chipNum("x_posts", (k==="all" ? ps : ps.filter(p => p.group === k)).map(p => ts(p.date)))}</button>`).join("") + `</div>`;
   } else if (n.id === "x_trend") {
     // lọc nhanh theo loại: Mã ($), Hashtag (#), Tài khoản (@), Từ khoá
     const tr = DATA.x_trend || [];
     const kinds = [...new Set(tr.map(t => t.kind))];
     h += `<div class="chips">` + [["all","Tất cả"], ...kinds.map(k => [k, k])].map(([k,l]) =>
-      `<button class="chip" data-tkind="${esc(k)}" aria-pressed="${state.tkind===k}">${esc(l)} · ${k==="all" ? tr.length : tr.filter(t => t.kind === k).length}</button>`).join("") + `</div>`;
+      `<button class="chip" data-tkind="${esc(k)}" aria-pressed="${state.tkind===k}">${esc(l)}${chipNum("x_trend", (k==="all" ? tr : tr.filter(t => t.kind === k)).map(t => Math.max(0, ...postsFor(t.term).map(p => ts(p.date)))))}</button>`).join("") + `</div>`;
   } else if (n.id === "flow") {
     const fl = DATA.flow || [];
     const grs = [...new Set(fl.map(m => m.group))];
     h += `<div class="chips">` + [["all","Tất cả"], ...grs.map(g => [g, g])].map(([k,l]) =>
-      `<button class="chip" data-fgroup="${esc(k)}" aria-pressed="${state.fgroup===k}">${esc(l)} · ${k==="all" ? fl.length : fl.filter(m => m.group === k).length}</button>`).join("") + `</div>`;
+      `<button class="chip" data-fgroup="${esc(k)}" aria-pressed="${state.fgroup===k}">${esc(l)}${chipNum("flow", (k==="all" ? fl : fl.filter(m => m.group === k)).map(m => ts(m.date)))}</button>`).join("") + `</div>`;
   } else if (n.id === "watch") {
     const w = DATA.watch || [];
     const opts = [["all","Tất cả"], ...Object.entries(DATA.watch_labels || {})];
     const people = [...new Set(w.filter(m => m.tags.includes("nguoi")).map(m => m.sender || m.username))].filter(Boolean);
-    h += `<div class="chips">` + opts.map(([k,l]) => `<button class="chip" data-watch="${k}" aria-pressed="${state.watch===k}">${esc(l)} · ${k==="all"?w.length:w.filter(m=>m.tags.includes(k)).length}</button>`).join("")
-      + people.map(p => `<button class="chip" data-watch="p:${esc(p)}" aria-pressed="${state.watch==="p:"+p}">${esc(p)}</button>`).join("") + `</div>`;
+    h += `<div class="chips">` + opts.map(([k,l]) => `<button class="chip" data-watch="${k}" aria-pressed="${state.watch===k}">${esc(l)}${chipNum("watch", (k==="all" ? w : w.filter(m => m.tags.includes(k))).map(m => ts(m.date)))}</button>`).join("")
+      + people.map(p => `<button class="chip" data-watch="p:${esc(p)}" aria-pressed="${state.watch==="p:"+p}">${esc(p)}${chipNum("watch", w.filter(m => (m.sender || m.username) === p).map(m => ts(m.date)))}</button>`).join("") + `</div>`;
   }
   $("#bar").innerHTML = h;
 }
@@ -740,6 +793,7 @@ function armFeed(n){
 }
 
 function render(){
+  markSeen(state.nav);
   side(); bar();
   const n = cur();
   const html = viewHtml(n);
