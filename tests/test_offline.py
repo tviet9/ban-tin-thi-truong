@@ -132,6 +132,29 @@ def test_dex_one_by_one():
     print("dex one-by-one OK")
 
 
+def test_rss_discover():
+    """Trang không khai báo RSS (vneconomy.vn): thử đường dẫn hay gặp, nhận đúng /tin-moi.rss."""
+    import web_fetch
+    feed = b'<?xml version="1.0"?><rss><channel><title>T</title><item><title>A</title><link>https://a.vn/1</link></item></channel></rss>'
+    tried = []
+
+    def fake_get(url, timeout=25):
+        tried.append(url)
+        if url.endswith("/tin-moi.rss"):
+            return feed, "application/rss+xml"
+        if url.endswith(".rss") or url.endswith("/feed") or url.endswith("/rss") or url.endswith(".xml"):
+            raise OSError("404")
+        return b"<html><a href='/rss.html'>RSS</a></html>", "text/html"
+    old = web_fetch._get
+    web_fetch._get = fake_get
+    try:
+        msgs, sites = web_fetch.fetch([{"url": "https://vneconomy.vn/"}], since=None)
+    finally:
+        web_fetch._get = old
+    assert sites and sites[0]["feed"] == "https://vneconomy.vn/tin-moi.rss" and len(msgs) == 1, (sites, tried)
+    print("rss discover OK")
+
+
 def test_health():
     import urllib.error
     from health import Health, classify
@@ -225,6 +248,7 @@ def test_nitter_fallback():
 
 
 if __name__ == "__main__":
+    test_rss_discover()
     test_dex_one_by_one()
     test_health()
     test_fulltext()
