@@ -55,6 +55,17 @@ async function buildData(env, day) {
   for (const e of [...(digest?.events || []), ...hours.flatMap(h => h.events || [])]) for (const id of e.source_ids || []) ids.add(String(id));
   const msgs = {};
   for (const r of await inChunks(db, "SELECT uid, data FROM messages WHERE uid IN (?)", [...ids])) msgs[r.uid] = parse(r.data, {});
+  // CA lưu trước khi có cột "Gửi lần đầu": tìm tin sớm nhất trong các tin đã nhắc CA đó
+  const need = tokens.filter(t => !t.first_sender && (t.uids || []).length);
+  const tm = {};
+  for (const r of await inChunks(db, "SELECT uid, data FROM messages WHERE uid IN (?)", [...new Set(need.flatMap(t => t.uids.map(String)))])) tm[r.uid] = parse(r.data, {});
+  for (const t of need) {
+    const f = t.uids.map(u => tm[u]).filter(m => m && m.date).sort((a, b) => Date.parse(a.date) - Date.parse(b.date))[0];
+    if (!f) continue;
+    t.first_sender = f.username ? "@" + f.username : f.sender || null;
+    t.first_group = t.first_group || f.group;
+    t.first_seen = t.first_seen || f.date;
+  }
   const stats = st ? parse(st.data, {}) : {};
   return {
     generated_at: last ? parse(last.value, null) : null,
