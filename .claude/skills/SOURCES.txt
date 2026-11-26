@@ -3,3 +3,6 @@ Chỉ lấy phần skills, không cài hooks của plugin.
 
 find-skills: sao chép từ https://github.com/vercel-labs/skills (skills/find-skills).
 web-design-guidelines: sao chép từ https://github.com/vercel-labs/agent-skills (skills/web-design-guidelines).
+
+design-taste-frontend: sao chép từ https://github.com/Leonxlnx/taste-skill (skills/taste-skill, bản 2.5.1, commit d1a2bb4, giấy phép MIT, xem design-taste-frontend/LICENSE).
+Skill có sẵn một Stop hook chạy scripts/gate.mjs: chỉ kiểm tra trang do skill dựng (thư mục .taste-skill), không có thì thoát.
