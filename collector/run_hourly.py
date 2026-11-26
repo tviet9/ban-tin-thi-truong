@@ -304,7 +304,8 @@ def main():
         db.upsert("stats", ["day", "data"], [[d, json.dumps(cur)]], conflict=["day"])
     # Ghi tin đã xử lý (đánh dấu xong)
     db.upsert("messages", ["uid", "day", "date", "data"], [[m["uid"], vn_day(m["date"]), m["date"], json.dumps({
-        "link": m["link"], "group": m["group"], "date": m["date"], "sender": m.get("sender"), "text": m["text"][:400]},
+        "link": m["link"], "group": m["group"], "date": m["date"], "sender": m.get("sender"),
+        "username": m.get("sender_username"), "text": m["text"][:400]},
         ensure_ascii=False)] for m in kept], conflict=["uid"])
     db.set_state("min_ids", min_ids)
     if src["website"] or src["x"]:

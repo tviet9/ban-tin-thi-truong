@@ -115,10 +115,11 @@ td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:now
 tr:last-child td{border-bottom:0}
 .sym{font-weight:700;overflow-wrap:anywhere}
 .small{font-size:.72rem;color:var(--muted);font-family:var(--sans);display:block;margin-top:2px;white-space:normal}
-td.who{max-width:150px}
+.nw{white-space:nowrap!important}
+td.who{min-width:130px;max-width:190px}
 .whoname{display:block;font-weight:600;font-size:.8rem;overflow-wrap:anywhere}
-.seen{display:block;margin-top:3px;font-size:.72rem;color:var(--accent);font-weight:500;white-space:normal}
-.chain{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.seen{display:block;margin-top:3px;font-size:.72rem;color:var(--accent);font-weight:500;white-space:nowrap}
+.chain{white-space:nowrap;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .up{color:var(--up)} .down{color:var(--down)}
 .new{font-size:.66rem;font-weight:700;color:var(--i4);margin-left:6px}
 .first{font-size:.72rem;color:var(--muted);font-family:var(--sans)}
@@ -420,7 +421,7 @@ function firstSeen(t){
 }
 // Ai gửi CA đầu tiên: tài khoản X (@tên) hoặc người gửi + nhóm Telegram
 function firstWho(t){
-  const g = t.first_group || "", isX = g.startsWith("X · ");
+  const g = t.first_group || (t.groups || [])[0] || "", isX = g.startsWith("X · ");
   const who = isX ? g.slice(4) : (t.first_sender || "");
   if (!who && !g) return `<span class="small">–</span>`;
   return `<span class="whoname">${esc(who || "Không rõ tên")}</span><span class="small">${isX ? "X" : "Telegram · " + esc(g)}</span>`;
@@ -435,22 +436,21 @@ function renderTokens(onlyX){
     const ch = t.change_since_first;
     const cls = ch > 0 ? "up" : ch < 0 ? "down" : "";
     const chg = ch == null ? `<span class="first">Lần đầu được nhắc</span>`
-      : `<span class="${cls}">${pct(ch)}</span><span class="small">so với ${fmtPrice(t.base_price)} lúc ${fmtTime(t.base_at)}</span>`;
+      : `<span class="${cls}">${pct(ch)}</span><span class="small">so với ${fmtPrice(t.base_price)} <span class="nw">lúc ${fmtTime(t.base_at)}</span></span>`;
     const isNew = t.age_hours != null && t.age_hours < 72;
     return `<tr>
       <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span>${firstSeen(t)}</td>
       <td class="who" data-l="Gửi lần đầu">${firstWho(t)}</td>
-      <td class="num" data-l="Giá hiện tại">${fmtPrice(t.price_usd)}<span class="small">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
+      <td class="num" data-l="Giá hiện tại">${fmtPrice(t.price_usd)}<span class="small nw">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
       <td class="num" data-l="Thay đổi">${chg}</td>
       <td class="num" data-l="Vol 24h">${fmtUsd(t.volume_24h)}</td>
       <td class="num" data-l="Thanh khoản">${fmtUsd(t.liquidity_usd)}</td>
       <td class="num" data-l="Vốn hoá">${fmtUsd(t.market_cap ?? t.fdv)}</td>
       <td class="num" data-l="Tuổi">${esc(t.age)}</td>
-      <td class="num" data-l="Nhắc">${t.mentions}<span class="small clamp2" title="${esc(t.groups.join(", "))}">${t.groups.map(esc).join(", ")}</span></td>
       <td><div class="acts"><button class="copy" data-copy="${esc(t.address)}" id="copy-${i}" title="${esc(t.address)}">${short(t.address)}</button><a href="${safeUrl(t.url)}" target="_blank" rel="noopener">DexScreener</a></div></td></tr>`;
   }).join("");
   return `<p class="note">Xếp theo thời gian CA xuất hiện lần đầu, mới nhất ở trên. Giá lấy từ DexScreener lúc cập nhật. Cột "Thay đổi" chỉ có số khi CA đã được nhắc ở lần cập nhật trước, so với giá lúc đó. Thanh khoản và volume cộng tất cả các cặp. Bấm địa chỉ để sao chép CA.</p>
-  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th>Gửi lần đầu</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th class="num">Nhắc</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
+  <div class="tbl"><table translate="no"><thead><tr><th>Token</th><th>Gửi lần đầu</th><th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Vol 24h</th><th class="num">Thanh khoản</th><th class="num">Vốn hoá</th><th class="num">Tuổi</th><th>CA</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length > state.tokLimit ? `<button class="btn" data-tokmore="1" id="tokMore">Xem thêm ${Math.min(100, list.length - state.tokLimit)} token (còn ${list.length - state.tokLimit})</button>` : ""}`;
 }
 
 function renderWatch(){
