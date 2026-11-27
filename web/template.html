@@ -370,7 +370,7 @@ const evTs = e => Math.max(0, ...(e.points||[]).map(p => { const m = /^(\d{1,2})
 const tokTs = t => ts(t.first_mention || t.first_seen);
 function itemsOf(n){  // [mốc thời gian] của từng mục
   if (n.id === "tokens") return DATA.tokens.filter(fromTg).map(tokTs);
-  if (n.id === "x_ca") { const xc = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || [])); return DATA.tokens.filter(t => t.x || xc.has(t.address)).map(tokTs); }
+  if (n.id === "x_ca") return DATA.tokens.filter(firstFromX).map(tokTs);
   if (n.id === "watch") return (DATA.watch||[]).map(m => ts(m.date));
   if (n.id === "flow") return (DATA.flow||[]).map(m => ts(m.date));
   if (n.id === "links") return goodLinks().map(l => ts(l.date));
@@ -413,7 +413,7 @@ function count(n){
   if (n.id === "links") return goodLinks().length;
   if (n.id === "x_posts") return (DATA.x_posts||[]).length;
   if (n.id === "x_trend") return (DATA.x_trend||[]).length;
-  if (n.id === "x_ca") { const xc = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || [])); return DATA.tokens.filter(t => t.x || xc.has(t.address)).length; }
+  if (n.id === "x_ca") return DATA.tokens.filter(firstFromX).length;
   if (n.id === "settings") { const s = DATA.sources || {}; return (s.telegram||[]).length + (s.websites||[]).length + (s.x||[]).length; }
   return allEvents().filter(e => inNav(e, n)).length;
 }
@@ -517,12 +517,15 @@ function firstWho(t){
   return `<span class="whoname">${esc(who || "Không rõ tên")}</span><span class="small">${isX ? "X" : "Telegram · " + esc(g)}</span>`;
 }
 // CA được nhắc trong ít nhất một nhóm Telegram (CA chỉ có trên X nằm ở bảng token của mục X)
-const fromTg = t => (t.groups || []).some(g => !/^X( · |$)/.test(g));
+// Mỗi CA nằm ở bảng của nơi được gửi LẦN ĐẦU: gửi đầu trên X -> bảng X, còn lại -> bảng Telegram.
+// CA cũ chưa ghi nơi gửi đầu: chỉ được nhắc trên X thì tính là X.
+const isXGroup = g => /^X( · |$)/.test(g || "");
+const firstFromX = t => t.first_group ? isXGroup(t.first_group) : !(t.groups || []).some(g => !isXGroup(g));
+const fromTg = t => !firstFromX(t);
 function renderTokens(onlyX){
-  const xcas = new Set((DATA.x_posts||[]).flatMap(p => p.contracts || []));
   // Mới xuất hiện lần đầu ở trên cùng; token chưa rõ thời gian xuống cuối
   const firstAt = t => Date.parse(t.first_mention || t.first_seen || "") || 0;
-  const list = (onlyX ? DATA.tokens.filter(t => t.x || xcas.has(t.address)) : DATA.tokens.filter(fromTg)).sort((a, b) => firstAt(b) - firstAt(a));
+  const list = DATA.tokens.filter(onlyX ? firstFromX : fromTg).sort((a, b) => firstAt(b) - firstAt(a));
   if (!list.length) return `<p class="empty">${onlyX ? "Chưa có CA nào được nhắc trên các tài khoản X bạn theo dõi." : "Chưa thấy contract nào có giao dịch trên DexScreener."}</p>`;
   const rows = list.slice(0, state.tokLimit).map((t,i) => {
     const ch = t.change_since_first;
