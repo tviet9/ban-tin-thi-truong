@@ -63,10 +63,23 @@ async function buildData(env, day) {
   for (const e of [...(digest?.events || []), ...hours.flatMap(h => h.events || [])]) for (const id of e.source_ids || []) ids.add(String(id));
   const msgs = {};
   for (const r of await inChunks(db, "SELECT uid, data FROM messages WHERE uid IN (?)", [...ids])) msgs[r.uid] = parse(r.data, {});
+  // Nơi gửi lần đầu theo TỪNG nguồn: first_tg (nhóm Telegram) và first_x (tài khoản X), tìm trong các tin đã nhắc CA.
+  // CA nhắc ở cả hai nơi hiện ở cả hai bảng, mỗi bảng ghi người/giờ gửi đầu của nguồn đó.
+  const tm = {};
+  for (const r of await inChunks(db, "SELECT uid, data FROM messages WHERE uid IN (?)", [...new Set(tokens.flatMap(t => (t.uids || []).map(String)))])) tm[r.uid] = parse(r.data, {});
+  const isXg = g => /^X( · |$)/.test(g || "");
+  for (const t of tokens) {
+    const ms = (t.uids || []).map(u => tm[String(u)]).filter(m => m && m.date).sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+    const tg = ms.find(m => !isXg(m.group)), x = ms.find(m => isXg(m.group));
+    t.first_tg = tg ? { at: tg.date, group: tg.group, sender: tg.username ? "@" + tg.username : tg.sender || null } : null;
+    t.first_x = x ? { at: x.date, group: x.group, sender: x.group.slice(4) || "X" } : null;
+    // tin gốc đã bị xoá khỏi bảng messages: dùng thông tin gửi đầu đã lưu cùng token
+    const at = t.first_mention || t.first_seen;
+    if (!t.first_tg && t.first_group && !isXg(t.first_group)) t.first_tg = { at, group: t.first_group, sender: t.first_sender || null };
+    if (!t.first_x && t.first_group && isXg(t.first_group)) t.first_x = { at, group: t.first_group, sender: t.first_group.slice(4) };
+  }
   // CA lưu trước khi có cột "Gửi lần đầu": tìm tin sớm nhất trong các tin đã nhắc CA đó
   const need = tokens.filter(t => !t.first_sender && (t.uids || []).length);
-  const tm = {};
-  for (const r of await inChunks(db, "SELECT uid, data FROM messages WHERE uid IN (?)", [...new Set(need.flatMap(t => t.uids.map(String)))])) tm[r.uid] = parse(r.data, {});
   for (const t of need) {
     const f = t.uids.map(u => tm[u]).filter(m => m && m.date).sort((a, b) => Date.parse(a.date) - Date.parse(b.date))[0];
     if (!f) continue;

@@ -369,8 +369,8 @@ const ts = d => Date.parse(d || "") || 0;
 const evTs = e => Math.max(0, ...(e.points||[]).map(p => { const m = /^(\d{1,2}):(\d{2})/.exec(p); return m ? ts(`${DATA.day}T${m[1].padStart(2,"0")}:${m[2]}:00+07:00`) : 0; }));
 const tokTs = t => ts(t.first_mention || t.first_seen);
 function itemsOf(n){  // [mốc thời gian] của từng mục
-  if (n.id === "tokens") return DATA.tokens.filter(fromTg).map(tokTs);
-  if (n.id === "x_ca") return DATA.tokens.filter(firstFromX).map(tokTs);
+  if (n.id === "tokens") return DATA.tokens.filter(fromTg).map(t => tokTsSrc(t, false));
+  if (n.id === "x_ca") return DATA.tokens.filter(firstFromX).map(t => tokTsSrc(t, true));
   if (n.id === "watch") return (DATA.watch||[]).map(m => ts(m.date));
   if (n.id === "flow") return (DATA.flow||[]).map(m => ts(m.date));
   if (n.id === "links") return goodLinks().map(l => ts(l.date));
@@ -504,27 +504,28 @@ function renderNews(n){
 }
 
 // Lần đầu CA xuất hiện: giờ + nơi (nhóm Telegram hoặc tài khoản X)
-function firstSeen(t){
-  const at = t.first_mention || t.first_seen;
+// Thông tin gửi lần đầu theo bảng: bảng X dùng first_x, bảng Telegram dùng first_tg (tính ở worker)
+const srcFirst = (t, x) => x ? t.first_x : t.first_tg;
+function firstSeen(t, x){
+  const at = srcFirst(t, x)?.at || t.first_mention || t.first_seen;
   if (!at) return "";
   return `<span class="seen">Xuất hiện ${fmtTime(at)}</span>`;
 }
 // Ai gửi CA đầu tiên: tài khoản X (@tên) hoặc người gửi + nhóm Telegram
-function firstWho(t){
-  const g = t.first_group || (t.groups || [])[0] || "", isX = g.startsWith("X · ");
-  const who = isX ? g.slice(4) : (t.first_sender || "");
-  if (!who && !g) return `<span class="small">–</span>`;
-  return `<span class="whoname">${esc(who || "Không rõ tên")}</span><span class="small">${isX ? "X" : "Telegram · " + esc(g)}</span>`;
+function firstWho(t, x){
+  const f = srcFirst(t, x);
+  if (!f) return `<span class="small">–</span>`;
+  return `<span class="whoname">${esc(f.sender || "Không rõ tên")}</span><span class="small">${x ? "X" : "Telegram · " + esc(f.group || "")}</span>`;
 }
 // CA được nhắc trong ít nhất một nhóm Telegram (CA chỉ có trên X nằm ở bảng token của mục X)
-// Mỗi CA nằm ở bảng của nơi được gửi LẦN ĐẦU: gửi đầu trên X -> bảng X, còn lại -> bảng Telegram.
-// CA cũ chưa ghi nơi gửi đầu: chỉ được nhắc trên X thì tính là X.
+// CA nhắc ở cả hai nơi hiện ở cả hai bảng; mỗi bảng ghi người/giờ gửi đầu của nguồn đó.
 const isXGroup = g => /^X( · |$)/.test(g || "");
-const firstFromX = t => t.first_group ? isXGroup(t.first_group) : !(t.groups || []).some(g => !isXGroup(g));
-const fromTg = t => !firstFromX(t);
+const fromTg = t => !!t.first_tg || (t.groups || []).some(g => !isXGroup(g));
+const firstFromX = t => !!t.first_x || !!t.x || (t.groups || []).some(isXGroup);
+const tokTsSrc = (t, x) => ts(srcFirst(t, x)?.at || t.first_mention || t.first_seen);
 function renderTokens(onlyX){
   // Mới xuất hiện lần đầu ở trên cùng; token chưa rõ thời gian xuống cuối
-  const firstAt = t => Date.parse(t.first_mention || t.first_seen || "") || 0;
+  const firstAt = t => tokTsSrc(t, onlyX);
   const list = DATA.tokens.filter(onlyX ? firstFromX : fromTg).sort((a, b) => firstAt(b) - firstAt(a));
   if (!list.length) return `<p class="empty">${onlyX ? "Chưa có CA nào được nhắc trên các tài khoản X bạn theo dõi." : "Chưa thấy contract nào có giao dịch trên DexScreener."}</p>`;
   const rows = list.slice(0, state.tokLimit).map((t,i) => {
@@ -535,8 +536,8 @@ function renderTokens(onlyX){
     const p0 = t.base_price ?? t.price_usd, p0at = t.base_price != null ? t.base_at : t.price_at;
     const isNew = t.age_hours != null && t.age_hours < 72;
     return `<tr>
-      <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span>${firstSeen(t)}</td>
-      <td class="who" data-l="Gửi lần đầu">${firstWho(t)}</td>
+      <td><span class="sym">${esc(t.symbol)}</span>${isNew?'<span class="new">MỚI</span>':""}<br><span class="chain">${esc(t.chain)} · ${esc(t.dex)}</span>${firstSeen(t, onlyX)}</td>
+      <td class="who" data-l="Gửi lần đầu">${firstWho(t, onlyX)}</td>
       <td class="num" data-l="Giá lần đầu">${fmtPrice(p0)}<span class="small nw">lúc ${fmtTime(p0at)}</span></td>
       <td class="num" data-l="Giá hiện tại">${fmtPrice(t.price_usd)}<span class="small nw">lúc ${fmtTime(t.price_at || DATA.generated_at)}</span></td>
       <td class="num" data-l="Thay đổi">${chg}</td>
